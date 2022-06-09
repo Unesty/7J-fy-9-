@@ -1,0 +1,2 @@
+Project will have a graph database and compiler binary executable, that contains header parser.
+Header parser should have functionality to compile parsers for graphs stored in database.
