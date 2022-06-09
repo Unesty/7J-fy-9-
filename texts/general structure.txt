@@ -1,2 +1,21 @@
+This text must not be used in final product, or as a doc for it.
+
 Project will have a graph database and compiler binary executable, that contains header parser.
-Header parser should have functionality to compile parsers for graphs stored in database.
+Header parser should have functionality to compile and run parsers for graphs stored in database.
+
+
+Visual part
+
+1. Graph editor
+1.1 Parts
+1.1.1 Graph
+Nodes and edges can represent other nodes and edges.
+It can look like nodes and edges inside nodes and edges.
+This representation can be used to visualize abstraction.
+1.1.1.1 Node
+1.1.1.2 Edge
+1.1.2 Navigation
+1.1.3 Editing
+2. UI editor
+3. General plan
+Contains interactive 3d models, that can explain the plan.
