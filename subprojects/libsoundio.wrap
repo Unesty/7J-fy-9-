@@ -1,0 +1,4 @@
+[wrap-git]
+directory=libsoundio
+url=https://github.com/andrewrk/libsoundio
+revision=master

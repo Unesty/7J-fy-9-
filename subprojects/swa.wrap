@@ -1,0 +1,5 @@
+[wrap-git]
+directory=swa
+url=https://github.com/Unesty/swa
+revision=master
+
