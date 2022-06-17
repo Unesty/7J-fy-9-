@@ -10,6 +10,7 @@
 enum CompilerNodes {
     nodenone,
     nodeenum,
+    rawdatastart,
     nodeint32,
     nodeint64,
     nodefloat32,
@@ -18,12 +19,22 @@ enum CompilerNodes {
     nodestring, //
     nodemov,
     nodejmp,
+    nodeje,
+    nodejne,
+    nodewhile,
+    nodeif,
     nodeadd,
     nodesub,
     nodemul,
     nodediv,
-    rawdatastart,
     //add more when needed
+};
+
+enum HeaderSeq {
+    hs_null,
+    hs_hlen,
+    hs_version,
+    hs_
 };
 
 // this struct is unused, just for reference
@@ -33,7 +44,10 @@ struct FullNode {
     int outlen;
     int* ins;
     int* outs;
-}
+};
+
+uint32_t fnmemsz = 4096;
+char **mems = NULL;
 
 // general sequence is like so:
 // read header
@@ -51,7 +65,10 @@ struct FullNode {
 // parser seek value from second node
 //  // then we need to allocate memory for other graphs with graphs of their escape sequences for node types and compile and run their parsers
 // nodeint32
-//  version
+//  header version
+// then we need a version graph that contains changes between versions
+// how to represent chages? One way is to track binary differences and what parser needs to know.
+// chages are represented as
 // nodeint32
 //  graph start offset
 // nodeint32
@@ -89,14 +106,20 @@ int open_db(char *path) {
     uint32_t i = 0; // current node in header
     uint32_t hnl = sizeof(uint32_t); // header node data length in bytes
     uint32_t hlen = 32; // header length in nodes
-    
     while( i < hlen) {
         uint32_t c = dv.buf[i];
         // before parsing and compiling code
-        if(c == nodeint32) {
+        //if(c == nodeint32) {
             //
-            i+=2*hnl;
-            continue;
+            //i+=2*hnl;
+            //continue;
+        //}
+//         if(c == nodewhile) {
+//
+//         }
+        //
+        if(c == nodemov) {
+
         }
         if(c == rawdatastart) {
         }

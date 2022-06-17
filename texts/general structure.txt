@@ -6,12 +6,13 @@ Header parser should have functionality to compile and run parsers for graphs st
 
 Visual part
 
-1. Graph Editor
+1. Graph Viewer/Editor
 1.1 Graph
 Nodes and edges can represent other nodes and edges.
 It can look like nodes and edges inside nodes and edges.
 This representation can be used to visualize
  abstraction.
+Each modification will be saved in graph of modifications.
 1.1.1 Node
 1.1.2 Edge
 1.2 Navigation
@@ -48,3 +49,6 @@ Uses file manager. Save inside graph, or as file.
 Contains interactive 3d models, that can explain the plan.
 
 Backend
+
+Node has id, number of in/out nodes, in nodes, out nodes; type is saved in in nodes and numbers are stored in out nodes;  long int data type connected to raw data type, where raw data is in out section; in nodes are just numbers;...
+

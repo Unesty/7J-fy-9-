@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -38,6 +39,6 @@ int main() {
   int i;
   for (i = 0; i < 10; ++i)
     printf("f(%d) = %ld\n", i, (*f)(i));
-  munmap(f, 4096);
+  munmap((void*)f, 4096);
   return 0;
 }
