@@ -52,3 +52,10 @@ Backend
 
 Node has id, number of in/out nodes, in nodes, out nodes; type is saved in in nodes and numbers are stored in out nodes;  long int data type connected to raw data type, where raw data is in out section; in nodes are just numbers;...
 
+Server code has a loop, that listens clients and receives/sends packets. Client has graphical, sound outputs, inputs from keyboard, mouse, touchscreen, other devices. Both server and client use graph db.
+
+UI element has position, collider(plane, rounded plane, cube, rounded cube, sphere, capsule, procedural, 3d model), visual(procedural 3d model, 3d model, or image), state, event.
+In the UI editor, the properties of the element are shown as nodes next to it.
+They can also be viewed in graph editor in layout, that is more reliable for scripting.
+
+AI algorithms can be used to analyze data and predict next values.

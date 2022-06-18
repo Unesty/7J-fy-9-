@@ -1,0 +1,2 @@
+AI algorithms can be used to analyze data and predict next values.
+

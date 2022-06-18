@@ -9,8 +9,9 @@
 // these values are used as escape sequences for header parser
 enum CompilerNodes {
     nodenone,
-    nodeenum,
     rawdatastart,
+    nodegraphdatastart,
+    nodeenum,
     nodeint32,
     nodeint64,
     nodefloat32,
@@ -34,7 +35,6 @@ enum HeaderSeq {
     hs_null,
     hs_hlen,
     hs_version,
-    hs_
 };
 
 // this struct is unused, just for reference
@@ -67,8 +67,9 @@ char **mems = NULL;
 // nodeint32
 //  header version
 // then we need a version graph that contains changes between versions
-// how to represent chages? One way is to track binary differences and what parser needs to know.
-// chages are represented as
+// how to represent chages? One way is to track binary differences and what parser needs to know. Other is to keep which nodes was added/removed in which versions. Also each graph has hash.
+// chages are represented as TODO. currently not represented
+//
 // nodeint32
 //  graph start offset
 // nodeint32
@@ -84,46 +85,84 @@ char **mems = NULL;
 
 static struct DBFileValues {
     FILE* f;
-    struct stat *restrict statbuf;
-    char* buf;
+    struct stat statbuf;
+    void** buf;
 }dv;
 
 int open_db(char *path) {
-    int res = stat(path, dv.statbuf);
+    int res = stat(path, &dv.statbuf);
     if(res == -1) {
         printf("failed to stat %s\n", path);
+        return -1;
     }
     dv.f = fopen(path, "rw");
     if(dv.f == NULL) {
         printf("failed to open file %s\n", path);
+        return -2;
     }
     size_t sz = UINT32_MAX;
-    res = readall(dv.f, &dv.buf, &sz);
+    res = readall(dv.f, (char**)dv.buf, &sz);
     if(res != READALL_OK) {
         printf("failed to read %s\n", path);
         //TODO
+        return -3;
     }
     uint32_t i = 0; // current node in header
     uint32_t hnl = sizeof(uint32_t); // header node data length in bytes
     uint32_t hlen = 32; // header length in nodes
-    while( i < hlen) {
-        uint32_t c = dv.buf[i];
-        // before parsing and compiling code
-        //if(c == nodeint32) {
-            //
-            //i+=2*hnl;
-            //continue;
-        //}
-//         if(c == nodewhile) {
+    uint32_t c;
+//     while( i < hlen) {
+//         c = dv.buf[i];
+//         // before parsing and compiling code
+//         //if(c == nodeint32) {
+//             //
+//             //i+=2*hnl;
+//             //continue;
+//         //}
+// //         if(c == nodewhile) {
+// //
+// //         }
+//         //
+//         if(c == nodemov) {
 //
 //         }
-        //
-        if(c == nodemov) {
-
-        }
-        if(c == rawdatastart) {
-        }
-        i+=hnl;
+//         if(c == rawdatastart) {
+//         }
+//         i+=hnl;
+//     }
+    // hs_null
+    i++;
+    // hs_hlen
+    c = *(uint32_t*)dv.buf[i*hnl];
+    if(c == nodeint32) {
+        i++;
+        c = *(uint32_t*)dv.buf[i*hnl];
+        hlen = c;
+        printf("hlen = %d\n", hlen);
+    } else {
+        perror("invalid header: second node must have int32 type\n");
+        return 1;
     }
+    // currently we read all file
+//    lseek(
+    i++;
+    // hs_version
+    i++;
+    // type graph isn't implemented
+    i++;
+    // version graph isn't implemented
+    i++;
+    // here somewhere should start graph data
+    i = hlen*hnl;
+    c = *(uint32_t*)dv.buf[i*hnl];
+    while(c != nodegraphdatastart) {
+        i++;
+        if(i*hnl > sz) {
+            perror("header exists, but graph data not found\n");
+            return 1404;
+        }
+        c = *(uint32_t*)dv.buf[i*hnl];
+    }
+    printf("TODO\n");
     return 0;
 }
