@@ -86,7 +86,7 @@ char **mems = NULL;
 static struct DBFileValues {
     FILE* f;
     struct stat statbuf;
-    void** buf;
+    char** buf;
 }dv;
 
 int open_db(char *path) {
@@ -100,12 +100,16 @@ int open_db(char *path) {
         printf("failed to open file %s\n", path);
         return -2;
     }
-    size_t sz = UINT32_MAX;
+    size_t sz = dv.statbuf.st_size;
+    if(sz < 32) {
+        perror("file size is less than minimal\n");
+    }
+    dv.buf = malloc(sz);
     res = readall(dv.f, (char**)dv.buf, &sz);
     if(res != READALL_OK) {
         printf("failed to read %s\n", path);
         //TODO
-        return -3;
+        return res;
     }
     uint32_t i = 0; // current node in header
     uint32_t hnl = sizeof(uint32_t); // header node data length in bytes
@@ -133,10 +137,11 @@ int open_db(char *path) {
     // hs_null
     i++;
     // hs_hlen
-    c = *(uint32_t*)dv.buf[i*hnl];
+    uint32_t *buf = *(uint32_t**)dv.buf;
+    c = buf[i];
     if(c == nodeint32) {
         i++;
-        c = *(uint32_t*)dv.buf[i*hnl];
+        c = buf[i];
         hlen = c;
         printf("hlen = %d\n", hlen);
     } else {
@@ -153,15 +158,15 @@ int open_db(char *path) {
     // version graph isn't implemented
     i++;
     // here somewhere should start graph data
-    i = hlen*hnl;
-    c = *(uint32_t*)dv.buf[i*hnl];
+    i = hlen;
+    c = buf[i];
     while(c != nodegraphdatastart) {
         i++;
         if(i*hnl > sz) {
             perror("header exists, but graph data not found\n");
             return 1404;
         }
-        c = *(uint32_t*)dv.buf[i*hnl];
+        c = buf[i];
     }
     printf("TODO\n");
     return 0;
