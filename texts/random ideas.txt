@@ -1,2 +1,3 @@
 AI algorithms can be used to analyze data and predict next values.
 
+Safety is implemented by understanding the meanings.

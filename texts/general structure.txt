@@ -58,4 +58,3 @@ UI element has position, collider(plane, rounded plane, cube, rounded cube, sphe
 In the UI editor, the properties of the element are shown as nodes next to it.
 They can also be viewed in graph editor in layout, that is more reliable for scripting.
 
-AI algorithms can be used to analyze data and predict next values.
