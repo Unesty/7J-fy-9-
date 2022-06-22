@@ -44,7 +44,11 @@ struct Uniforms uniforms = {
 // 	//float padding[3];
 // };
 // struct BVertex *vertexes;
-float *vertexes; // 2 floats postion 1 float color
+// float *vertexes;
+struct {
+float *positions; // 2 floats postion 1 float color
+float *colors;
+} vdata;
 uint32_t vertex_count;
 uint32_t BV_lposition = 0;
 uint32_t BV_lcolor = 1;
@@ -63,19 +67,22 @@ struct WinPos win_dimensions = {
 	0, 0, 640, 480
 };
 
+//TODO: generate shaders from graph
 char *vert_shader_text =
 "#version 400\n"
+"precision highp float;\n"
 "in vec2 aPos;\n"
-// "in vec3 aColor;\n"
+"in vec3 aColor;\n"
 "uniform vec2 iCamPos;\n"
 "out vec3 vColor;\n"
 "void main()\n"
 "{\n"
-"	gl_Position = vec4(aPos+iCamPos, 0.0f, 1.0f)+vec4(2 * vec2((gl_VertexID << 1) & 2, gl_VertexID & 2) - 1.0f, 0.0f, 1.0f)/2.;\n"
-"	vColor = vec3(aPos, 0.1);\n"
+"	gl_Position = vec4(aPos+iCamPos, 0.0f, 1.0f);\n"
+"	vColor = aColor;\n"
 "}\n";
 char *frag_shader_text =
 "#version 400\n"
+"precision highp float;\n"
 "in vec3 vColor;\n"
 "uniform vec2 iCamPos;\n"
 "out vec4 fColor;\n" // may be vec3, vec4 or float on different windowing systems
@@ -111,7 +118,7 @@ void ui_init() {
 	// allocate vertex buffer
 	// background triangle
 // 	vertexes = malloc(3*sizeof(struct BVertex));
-	vertexes = malloc(3*2*32);
+	vdata.positions = malloc(3*2*32);
 	vertex_count += 3;
 // 	for(uint8_t v = 0; v < 3; v++) {
 // 		vertexes[v]
@@ -132,14 +139,14 @@ void ui_init() {
 // 	vertexes[2].positions[0] = -1.;
 // 	vertexes[2].positions[1] = 3.;
 
-	vertexes[0] = 0.1;
-	vertexes[1] = 0.1;
+	vdata.positions[0] = -2.;
+	vdata.positions[1] = -2.;
 
-	vertexes[2] = 3.;
-	vertexes[3] = -1.;
+	vdata.positions[2] = 30.;
+	vdata.positions[3] = -10.;
 
-	vertexes[4] = -1.;
-	vertexes[5] = 3.;
+	vdata.positions[4] = -10.;
+	vdata.positions[5] = 30.;
 	// graph representation
 
 	// copy db buffer data to vertex buffer
@@ -152,7 +159,7 @@ void ui_init() {
 
 ///////////////////////////////////////////////////////////////////
 
-
+void exit_cleanup();
 
 GLuint create_shader(const char *source, GLenum shader_type)
 {
@@ -197,7 +204,7 @@ MessageCallback( GLenum source,
 
 
 void graphics_init() {
-	// During init, enable debug output
+	// During init, enable OpenGL debug output
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(MessageCallback, 0);
 
@@ -253,7 +260,7 @@ void graphics_init() {
 	write(1,"1\n",2);
 	glEnableVertexAttribArray(0);
 	write(1,"1\n",2);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count, vertexes, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count*32, vdata.positions, GL_DYNAMIC_DRAW);
 	write(1,"1\n",2);
 // 	glBindAttribLocation(shader_program, 0, "aPos");
 // 	glBindAttribLocation(shader_program, 1, "aColor");
@@ -284,7 +291,7 @@ static void window_draw(struct swa_window* win) {
 	glClearColor(mult * 0.8f, mult * 0.6f, mult * 0.3f, alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUniform2f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1]);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count, vertexes, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count*32, vdata.positions, GL_DYNAMIC_DRAW);
 	glDrawArrays(GL_TRIANGLES, 0, vertex_count);
 	if(!swa_window_gl_swap_buffers(win)) {
 		dlg_error("swa_window_gl_swap_buffers failed");
@@ -341,6 +348,12 @@ static void window_key(struct swa_window* win, const struct swa_key_event* ev) {
 		else
 			shm->input = inp_none;
 	}
+	if(ev->keycode == swa_key_r) {
+		if(ev->pressed) {
+			exit_cleanup();
+			exit(0);
+		}
+	}
 }
 
 static void window_surface_created(struct swa_window* win) {
@@ -357,13 +370,14 @@ static const struct swa_window_listener window_listener = {
 	.mouse_move = mouse_move,
 	.surface_created = window_surface_created
 };
-
+struct swa_display* dpy;
+struct swa_window* win;
 int main(int argc, char** argv, char** envp) {
 	if(argc < 2) {
 		printf("usage: graphics [SHM NAME]\n");
 		return 0;
 	}
-	struct swa_display* dpy = swa_display_autocreate("swa example-gl");
+	dpy = swa_display_autocreate("swa example-gl");
 	if(!dpy) {
 		dlg_fatal("No swa backend available");
 		return EXIT_FAILURE;
@@ -391,7 +405,7 @@ int main(int argc, char** argv, char** envp) {
 	// settings.surface_settings.gl.srgb = true;
 	// settings.surface_settings.gl.debug = true;
 	// settings.surface_settings.gl.compatibility = false;
-	struct swa_window* win = swa_display_create_window(dpy, &settings);
+	win = swa_display_create_window(dpy, &settings);
 	if(!win) {
 		//dlg_fatal("Failed to create window");
 		swa_display_destroy(dpy);
@@ -406,6 +420,8 @@ int main(int argc, char** argv, char** envp) {
 	}
 	inpname = argv[1];
 
+	glEnable(GL_MULTISAMPLE);
+
 	io_init();
 	ui_init();
 	graphics_init();
@@ -418,8 +434,12 @@ int main(int argc, char** argv, char** envp) {
 		}
 	}
 
-	dlg_info("exiting");
+	exit_cleanup();
+}
 
+void exit_cleanup() {
+	dlg_info("exiting");
+	close(inpfd);
 	swa_window_destroy(win);
 	swa_display_destroy(dpy);
 }

@@ -86,34 +86,39 @@ int main(int argc, char** argv, char** envp) {
 //         pids.graphics =
     }
     // r
+    bool restart = false;
     // run graphics
-    sleep(100000); // to run it separately
-    while(true) {
-
-    if(fork() == 0) {
-        char* newargv[] = {"graphics", inpname, NULL};
-        execvpe("src/graphics", newargv, envp);
-        printf("failed to open graphics executable\n");
-        sleep(100);
-//         pids.graphics =
-    }
-    int wstatus;
-    if(shm->pids.graphics == 0) {
-        printf("no graphics process pid\n");
-        sleep(1);
-        if(shm->pids.graphics == 0) {
-            break;
+//     sleep(100000); // to run it separately
+    while(shm->run == true) {
+        if(restart)
+            printf("restarting graphics\n");
+        if(fork() == 0) {
+            char* newargv[] = {"graphics", inpname, NULL};
+            execvpe("src/graphics", newargv, envp);
+            printf("failed to open graphics executable\n");
+            sleep(100);
+    //         pids.graphics =
         }
-    }
-    waitpid(shm->pids.graphics, &wstatus, 0);
-    int ret = WEXITSTATUS(wstatus);
-    printf("WEXITSTATUS = %d\n", wstatus);
-    if(wstatus!=0) {
-        shm->run = false;
-        break;
-    } else {
-        shm->run = true;
-    }
+        int wstatus;
+        if(shm->pids.graphics == 0) {
+            printf("no graphics process pid\n");
+            sleep(1);
+            if(shm->pids.graphics == 0) {
+                break;
+            }
+        }
+        sleep(1); // TODO: loop intil process appears
+        waitpid(shm->pids.graphics, &wstatus, 0);
+        int ret = WEXITSTATUS(wstatus);
+        printf("WEXITSTATUS = %d\n", wstatus);
+        if(wstatus!=0) {
+            shm->run = false;
+            printf("graphics process failed\n");
+            break;
+        } else {
+            printf("graphics process ended successfully\n");
+            restart = true;
+        }
     }
     // run sound
 
