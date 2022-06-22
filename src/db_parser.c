@@ -7,7 +7,23 @@
 #include <stdio.h> // we will output to graph db instead later
 #include <errno.h>
 #include "someutils.h"
+#include "shared.h"
+#include <dlg/dlg.h>
 
+int io_init() {
+	inpfd = shm_open(inpname, O_RDWR, S_IRUSR | S_IWUSR);
+	if (inpfd == -1) {
+        dlg_error("can't open shm %s\n", inpname);
+    }
+	shm = (struct SharedMem*)mmap(0, sizeof(struct SharedMem), PROT_READ|PROT_WRITE, MAP_SHARED, inpfd, 0); // somehow it works without shmopen
+	if (shm == MAP_FAILED) {
+        dlg_error("mmap failed\n");
+        return -1;
+    }
+	shm->pids.db_server = getpid();
+	dlg_info("db server pid %d\n", shm->pids.db_server);
+    return 0;
+}
 
 // this struct is unused, just for reference
 // struct DataPtrNode {
@@ -72,14 +88,13 @@ uint8_t gris_len = 0;
 // // or get existing code
 // 
 
-static struct DBFileValues {
-    FILE* f;
-    struct stat statbuf;
-    char** buf;
-}dv;
 uint32_t *buf;
 
 int open_db(char *path) {
+    int res = io_init();
+    if(res != 0) {
+        return res;
+    }
     // these values are used as escape sequences for header parser
     enum CompilerNodes {
         nodenone,
@@ -111,22 +126,22 @@ int open_db(char *path) {
         hs_version,
     };
 
-    int res = stat(path, &dv.statbuf);
+    res = stat(path, &shm->dv.statbuf);
     if(res == -1) {
         printf("failed to stat %s\n", path); // we need a graph of errors, so we need to save parsing history in another graph
         return -1;
     }
-    dv.f = fopen(path, "rw");
-    if(dv.f == NULL) {
+    shm->dv.f = fopen(path, "rw");
+    if(shm->dv.f == NULL) {
         printf("failed to open file %s\n", path);
         return -2;
     }
-    size_t sz = dv.statbuf.st_size;
+    size_t sz = shm->dv.statbuf.st_size;
     if(sz < 32) {
         perror("file size is less than minimal\n");
     }
-    dv.buf = malloc(sz);
-    res = readall(dv.f, (char**)dv.buf, &sz);
+    shm->dv.buf = malloc(sz);
+    res = readall(shm->dv.f, (char**)shm->dv.buf, &sz);
     if(res != READALL_OK) {
         printf("failed to read %s\n", path);
         //TODO
@@ -158,7 +173,7 @@ int open_db(char *path) {
     // hs_null
     i++;
     // hs_hlen
-    buf = *(uint32_t**)dv.buf;
+    buf = *(uint32_t**)shm->dv.buf;
     c = buf[i];
     if(c == nodeint32) {
         i++;
@@ -234,7 +249,7 @@ int open_db(char *path) {
 
 // int test_db()
 int run_db_7(uint32_t gri) {
-    if(&gris[gri] ==  NULL || gri >= gris_len) {
+    if(gri >= gris_len) {
         printf("graph by id %d not exists", gri);
         return 404;
     }
@@ -291,5 +306,7 @@ int run_db_7(uint32_t gri) {
         i++;
     }
     i = 0;
+    printf("TODO: do the job\n");
+    sleep(10000);
     return 0;
 }

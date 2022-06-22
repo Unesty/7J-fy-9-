@@ -37,7 +37,6 @@ args = cc.get_supported_arguments([
 	'/wd4245', # signed/unsigned warning, way too strict.
 	'-D_CRT_SECURE_NO_WARNINGS',
 
-	# msvc really slow in debug build without this
 	#'-D_ITERATOR_DEBUG_LEVEL=0',
 
 	# for clang

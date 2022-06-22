@@ -1,3 +1,15 @@
 AI algorithms can be used to analyze data and predict next values.
 
 Safety is implemented by understanding the meanings.
+
+Explaination. For human, discrete system is like a maze,
+so to understand it must follow all ways. Usually, it
+is impossible, so data representation must be used to
+explain needed part in a way, that human can recognize.
+Human brain, can keep recognizable
+attention to up to 5-10 images. Also it can keep less recognizable attention to up to 40-100 images.
+1 image is main, it is used to contunue the thought.
+So, to explain graph we should highlight 1 node,
+less highlight 5 other nodes,
+keep in sight no more than 40 nodes.
+Then follow connections by sequential highlighting next nodes.

@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include <stdio.h>
+#include <sys/stat.h> // TODO: support other than unix-like
 
 enum GOType {
     player,
@@ -12,7 +14,7 @@ struct GameObject {
     char model[30];
 };
 struct Pids {
-    int ui_logic, graphics, sound;
+    int ui_logic, graphics, sound, db_server;
 };
 enum Inputs {
     inp_none,
@@ -23,11 +25,11 @@ struct SharedMem {
 //////////////////////////////////////////
 // ui_logic
 
-
-
-
-struct GameObject gos[2]; // array of all GameObject
-
+    struct DBFileValues {
+        FILE* f;
+        struct stat statbuf; // unix-like specific
+        char** buf;
+    }dv;
 // end ui_logic
 //////////////////////////////////////////
 
