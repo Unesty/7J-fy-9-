@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h> // TODO: support other than unix-like
 
@@ -16,35 +17,58 @@ struct GameObject {
 struct Pids {
     int ui_logic, graphics, sound, db_server;
 };
-enum Inputs {
-    inp_none,
-    inp_right,
-    inp_left,
-};
+
+
+
 struct SharedMem {
-//////////////////////////////////////////
-// ui_logic
+    //////////////////////////////////////////
+    // ui_logic
 
+
+    //
+    //////////////////////////////////////////
+
+    //////////////////////////////////////////
+    // database values
     struct DBFileValues {
-        FILE* f;
         struct stat statbuf; // unix-like specific
-        char** buf;
     }dv;
-// end ui_logic
-//////////////////////////////////////////
 
-//////////////////////////////////////////
-// communication with other processes
+    //
+    //////////////////////////////////////////
 
+    //////////////////////////////////////////
+    // IO
+    struct{
+        uint8_t reload_db;
+        uint8_t lmb;
+    }keys;
 
-    enum Inputs input;
+    float iCamPos[2];
+    struct{
+        float dx; // position difference
+        float dy;
+        float cx; // cursor position
+        float cy;
+    }mouse;
+
+    //
+    //////////////////////////////////////////
+
+    //////////////////////////////////////////
+    // communication with other processes
+
+//     char gris_name[10];
+    char ids_name[10];
 
     bool run;
 
     struct Pids pids;
-//
-//////////////////////////////////////////
+    //
+    //////////////////////////////////////////
 }*shm;
+
+
 
 char inpfd;
 char* inpname;

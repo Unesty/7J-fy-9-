@@ -44,15 +44,11 @@ int io_init() {
 
 size_t fnmemsz = 4096;
 char **mems = NULL;
-struct GraphInfo {
-    uint32_t id;
-    uint32_t start;
-    uint32_t len;
-    // uint32_t type;
-    uint32_t *idshifts;
-    size_t idshifts_len;
-}*gris;
-uint8_t gris_len = 0;
+
+uint32_t *buf;
+
+
+uint8_t db_fds[100];
 
 // general sequence is like so:
 // read header
@@ -88,8 +84,6 @@ uint8_t gris_len = 0;
 // // or get existing code
 // 
 
-uint32_t *buf;
-
 int open_db(char *path) {
     int res = io_init();
     if(res != 0) {
@@ -107,6 +101,7 @@ int open_db(char *path) {
         nodefloat64,
         nodechar,
         nodestring, //
+        nodeptrarr,
         nodemov,
         nodejmp,
         nodeje,
@@ -131,8 +126,8 @@ int open_db(char *path) {
         printf("failed to stat %s\n", path); // we need a graph of errors, so we need to save parsing history in another graph
         return -1;
     }
-    shm->dv.f = fopen(path, "rw");
-    if(shm->dv.f == NULL) {
+    db_fds[0] = open(path, O_RDWR);
+    if(db_fds[0] == 0) {
         printf("failed to open file %s\n", path);
         return -2;
     }
@@ -140,8 +135,10 @@ int open_db(char *path) {
     if(sz < 32) {
         perror("file size is less than minimal\n");
     }
-    shm->dv.buf = malloc(sz);
-    res = readall(shm->dv.f, (char**)shm->dv.buf, &sz);
+
+//     shm->dv.buf = malloc(sz);
+//     res = readall(db_files[0], (char**)shm->dv.buf, &sz);
+    buf = mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_SHARED, db_fds[0], 0);
     if(res != READALL_OK) {
         printf("failed to read %s\n", path);
         //TODO
@@ -173,7 +170,6 @@ int open_db(char *path) {
     // hs_null
     i++;
     // hs_hlen
-    buf = *(uint32_t**)shm->dv.buf;
     c = buf[i];
     if(c == nodeint32) {
         i++;
@@ -205,13 +201,12 @@ int open_db(char *path) {
         }
         c = buf[i];
     }
-    gris = malloc(sizeof(struct GraphInfo));
-    gris_len++;
-    uint32_t gri = 0;
+    //gris = mmap(sizeof(struct GraphInfo)); // later, or never if saving this in
+    gri_len++;
     uint32_t grlen = 0;
     uint32_t grnl = 4; // graph data array element length
-    gris[gri].id=gri;
-    gris[gri].start = i; // can also be pointer to buf[] element
+    gri[gri].id=gri;
+    gri.start = i; // can also be pointer to buf[] element
 
     // graph length
     i++;
@@ -219,22 +214,49 @@ int open_db(char *path) {
     // TODO: check for buffer overflow
     if(c == nodeint32) {
         i++;
-        gris[gri].len = buf[i];
-        grlen = gris[gri].len;
+        gri.len = buf[i];
+        grlen = gri.len;
     } else {
         perror("invalid graph length node\n");
         return 1132;
     }
     // graph type? currently we have 1. Later different will be used for different types, but parsers can be generated from graph. We still need initial graph parser, so type may still be used later. Graph type will contain node size, data, edge data, how they are stored, etc.
     // Current graph type is a struct DataNode array with types defined in ins array, special, for parser, node defines "type" type
+
+    uint8_t gris_len;
+    struct GraphInfo {
+        uint32_t id;
+        uint32_t start;
+        uint32_t len;
+        // uint32_t type;
+        size_t idshifts_len;
+        size_t idshifts_off;
+    }gri;
+    size_t idshifts_len;
+    uint32_t *idshifts;
+    uint8_t ids_fd;
+
     if(grlen > 0) {
-        gris[gri].idshifts = malloc(32*grlen/2);// allocate biggest possibly needed memory
+        shm->ids_name[0] = 'i';
+        shm->ids_name[1] = 'd';
+        shm->ids_name[2] = 's';
+        shm->ids_name[3] = '\0';
+        ids_fd = shm_open(shm->ids_name, O_CREAT|O_EXCL|O_RDWR, S_IRUSR | S_IWUSR);
+        if (inpfd == -1) {
+            dlg_error("can't open shm %s\n", shm->ids_name);
+            //TODO: generate new name
+        }
+        idshifts = (uint32_t*)mmap(0, 32*grlen/2, PROT_READ|PROT_WRITE, MAP_SHARED, ids_fd, 0);// allocate and share biggest possibly needed memory
+        if (idshifts == MAP_FAILED) {
+            dlg_error("mmap failed\n");
+        }
         // create an array of node id shifts. Needed because node data lengths are different.
         uint32_t n = 0;
+        uint32_t offs = gri.idshifts_off;
         while(i*grnl < sz) {
             c = buf[i];
-            gris[gri].idshifts[n] = i;
-            gris[gri].idshifts_len++;
+            idshifts[offs+n] = i;
+            gri.idshifts_len++;
             uint32_t inlen = buf[i];
             i++;
             uint32_t outlen = buf[i];
@@ -270,7 +292,8 @@ int run_db_7(uint32_t gri) {
                       MAP_PRIVATE | MAP_ANONYMOUS,
                       -1,               // fd (not used here)
                       0);               // offset (not used here)
-    s = gris[gri].idshifts[nodetype];
+    uint32_t offs = gri.idshifts_off;
+    s = idshifts[offs+nodetype];
     inlen = buf[s];
     outlen = buf[s+1];
     ins = &buf[s+2];
@@ -284,7 +307,7 @@ int run_db_7(uint32_t gri) {
         // create type on each output node
         // then iterate over all code types
         // to generate executable code
-        uint32_t s1 = gris[gri].idshifts[outs[i]];
+        uint32_t s1 = idshifts[offs+outs[i]];
         uint32_t inlen1 = buf[s1];
         uint32_t outlen1 = buf[s1+1];
         uint32_t i1 = 0;

@@ -1,5 +1,5 @@
-graphics = build_target('graphics',
-	'graphics.c',
+graphics = build_target('graphics_gl',
+	'graphics_gl.c',
 	target_type: 'executable',
 	include_directories: inc,
 	dependencies: [dep_dlg, dep_swa, dep_gl])

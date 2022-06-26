@@ -79,6 +79,7 @@ int main(int argc, char** argv, char** envp) {
 //     }
     // run db server
     if(fork() == 0) {
+        // TODO to supervise more than 1 process, waitpid on another thread
         char* newargv[] = {"db_server", inpname, "/bunny/7J-fy-9-/databases/example.graph", NULL};
         execvpe("src/db_server", newargv, envp);
         printf("failed to open db_server executable\n");
@@ -94,14 +95,14 @@ int main(int argc, char** argv, char** envp) {
             printf("restarting graphics\n");
         if(fork() == 0) {
             char* newargv[] = {"graphics", inpname, NULL};
-            execvpe("src/graphics", newargv, envp);
-            printf("failed to open graphics executable\n");
+            execvpe("src/graphics_gl", newargv, envp);
+            printf("failed to open opengl graphics executable\n");
             sleep(100);
     //         pids.graphics =
         }
         int wstatus;
         if(shm->pids.graphics == 0) {
-            printf("no graphics process pid\n");
+            printf("no opengl graphics process pid\n");
             sleep(1);
             if(shm->pids.graphics == 0) {
                 break;
@@ -112,11 +113,11 @@ int main(int argc, char** argv, char** envp) {
         int ret = WEXITSTATUS(wstatus);
         printf("WEXITSTATUS = %d\n", wstatus);
         if(wstatus!=0) {
-            shm->run = false;
-            printf("graphics process failed\n");
+//             shm->run = false;
+            printf("opengl graphics process failed\n");
             break;
         } else {
-            printf("graphics process ended successfully\n");
+            printf("opengl graphics process ended successfully\n");
             restart = true;
         }
     }

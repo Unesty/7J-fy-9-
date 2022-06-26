@@ -28,8 +28,8 @@
 
 static bool premult = false;
 
-// Graphics data
 ///////////////////////////////////////////////////////////////////
+// Graphics data
 struct Uniforms {
 	uint32_t liCamPos;
 	float iCamPos[2];
@@ -45,11 +45,21 @@ struct Uniforms uniforms = {
 // };
 // struct BVertex *vertexes;
 // float *vertexes;
+uint32_t vertex_count=0;
 struct {
-float *positions; // 2 floats postion 1 float color
-float *colors;
-} vdata;
-uint32_t vertex_count;
+	float *positions; // 2 floats postion 1 float color until we find out why more than 1 vertex array cause crash
+// 	uint32_t posoff; // always 0 now
+	uint32_t poslen;
+	float *colors;
+	uint32_t coloff;
+	uint32_t collen;
+} vdata = {
+	.positions = NULL,
+	.poslen = 3,
+	.colors = NULL,
+	.coloff = 0, // sizeof(positions)
+	.collen = 3,
+};
 uint32_t BV_lposition = 0;
 uint32_t BV_lcolor = 1;
 
@@ -71,24 +81,28 @@ struct WinPos win_dimensions = {
 char *vert_shader_text =
 "#version 400\n"
 "precision highp float;\n"
-"in vec2 aPos;\n"
-"in vec3 aColor;\n"
+"in vec3 aPos;\n"
+// "in vec3 aColor;\n"
 "uniform vec2 iCamPos;\n"
-"out vec3 vColor;\n"
+// "out vec3 vColor;\n"
+"out float vColor;\n"
 "void main()\n"
 "{\n"
-"	gl_Position = vec4(aPos+iCamPos, 0.0f, 1.0f);\n"
-"	vColor = aColor;\n"
+"	gl_Position = vec4(aPos[0]+iCamPos[0], aPos[1]+iCamPos[1], 0.0, 1.0);\n"
+// "	vColor = aPos[2].xxx;\n"
+"	vColor = aPos[2];\n"
 "}\n";
 char *frag_shader_text =
 "#version 400\n"
 "precision highp float;\n"
-"in vec3 vColor;\n"
+// "in vec3 vColor;\n"
+"in float vColor;\n"
 "uniform vec2 iCamPos;\n"
 "out vec4 fColor;\n" // may be vec3, vec4 or float on different windowing systems
 "void main()\n"
 "{\n"
-"	fColor = vec4(vColor, 1.0);\n"
+// "	fColor = vec4(vColor, 1.0);\n"
+"	fColor = vec4(vColor, vColor, vColor, 0.7);\n"
 "}\n";
 
 GLuint shader_program = 0;
@@ -96,8 +110,8 @@ GLuint shader_program = 0;
 // End graphics data
 ///////////////////////////////////////////////////////////////////
 
-
 ///////////////////////////////////////////////////////////////////
+//
 
 void io_init() {
 	inpfd = shm_open(inpname, O_RDWR, S_IRUSR | S_IWUSR);
@@ -118,8 +132,9 @@ void ui_init() {
 	// allocate vertex buffer
 	// background triangle
 // 	vertexes = malloc(3*sizeof(struct BVertex));
-	vdata.positions = malloc(3*2*32);
 	vertex_count += 3;
+	vdata.positions = malloc(vertex_count*vdata.poslen*4);
+	vdata.colors = malloc(vertex_count*3*4);
 // 	for(uint8_t v = 0; v < 3; v++) {
 // 		vertexes[v]
 // 	}
@@ -139,14 +154,32 @@ void ui_init() {
 // 	vertexes[2].positions[0] = -1.;
 // 	vertexes[2].positions[1] = 3.;
 
-	vdata.positions[0] = -2.;
-	vdata.positions[1] = -2.;
+	vdata.positions[0] = -3.;
+	vdata.positions[1] = -3.;
 
-	vdata.positions[2] = 30.;
-	vdata.positions[3] = -10.;
+	vdata.positions[2] = 0.; // black
 
-	vdata.positions[4] = -10.;
-	vdata.positions[5] = 30.;
+// 	vdata.colors[0] = 1.1;
+// 	vdata.colors[1] = 0.1;
+// 	vdata.colors[2] = 0.1;
+
+	vdata.positions[3] = 6.;
+	vdata.positions[4] = -3.;
+
+	vdata.positions[5] = 4.; // white
+
+// 	vdata.colors[3] = 0.1;
+// 	vdata.colors[4] = 1.0;
+// 	vdata.colors[5] = 0.1;
+
+	vdata.positions[6] = -3.;
+	vdata.positions[7] = 6.;
+
+	vdata.positions[8] = -2.; // also black, but with bigger value in interpolation
+
+// 	vdata.colors[6] = 0.1;
+// 	vdata.colors[7] = 0.1;
+// 	vdata.colors[8] = 1.1;
 	// graph representation
 
 	// copy db buffer data to vertex buffer
@@ -157,6 +190,20 @@ void ui_init() {
 // 	}
 }
 
+void ui_update() {
+	// clear color isn't used, so backend follows camera to clear background in 1 pass
+	vdata.positions[0] = -3.;
+	vdata.positions[1] = -3.;
+
+	vdata.positions[3] = 6.;
+	vdata.positions[4] = -3.;
+
+	vdata.positions[6] = -3.;
+	vdata.positions[7] = 6.;
+
+}
+
+//
 ///////////////////////////////////////////////////////////////////
 
 void exit_cleanup();
@@ -188,27 +235,8 @@ GLuint create_shader(const char *source, GLenum shader_type)
 
 	return shader;
 }
-void GLAPIENTRY
-MessageCallback( GLenum source,
-                 GLenum type,
-                 GLuint id,
-                 GLenum severity,
-                 GLsizei length,
-                 const GLchar* message,
-                 const void* userParam )
-{
-  fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
-            type, severity, message );
-}
 
-
-void graphics_init() {
-	// During init, enable OpenGL debug output
-	glEnable(GL_DEBUG_OUTPUT);
-	glDebugMessageCallback(MessageCallback, 0);
-
-	dlg_info("OpenGL version: %s", glGetString(GL_VERSION));
+void create_ui_shaders() {
 	GLuint frag, vert;
 	GLint status;
 
@@ -234,6 +262,31 @@ void graphics_init() {
 
 	glDeleteShader(vert);
 	glDeleteShader(frag);
+}
+
+void GLAPIENTRY
+MessageCallback( GLenum source,
+                 GLenum type,
+                 GLuint id,
+                 GLenum severity,
+                 GLsizei length,
+                 const GLchar* message,
+                 const void* userParam )
+{
+  fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
+            type, severity, message );
+}
+
+
+void graphics_init() {
+	// During init, enable OpenGL debug output
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(MessageCallback, 0);
+
+	dlg_info("OpenGL version: %s", glGetString(GL_VERSION));
+
+	create_ui_shaders();
 
 	glViewport(win_dimensions.x, win_dimensions.y, win_dimensions.width, win_dimensions.height);
 	glGenVertexArrays(1, &vao);
@@ -256,11 +309,17 @@ void graphics_init() {
 
 // 	glBindVertexBuffer(0, vbo, 0, 3*2*32);
 // 	write(1,"1\n",2);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	write(1,"1\n",2);
+// 	write(1,"1\n",2);
 	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, vdata.poslen, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	write(1,"1\n",2);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count*32, vdata.positions, GL_DYNAMIC_DRAW);
+// 	glEnableVertexAttribArray(1); // cause crash for some reason
+// 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)((intptr_t)(vertex_count*2*4)));
+// 	write(1,"1\n",2);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count*vdata.poslen*4, vdata.positions, GL_DYNAMIC_DRAW);
+// 	glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count*vdata.poslen*4, vdata.positions);
+// 	vdata.coloff = vertex_count*2*4;
+// 	glBufferSubData(GL_ARRAY_BUFFER, vdata.coloff, vertex_count*vdata.collen*4, vdata.colors);
 	write(1,"1\n",2);
 // 	glBindAttribLocation(shader_program, 0, "aPos");
 // 	glBindAttribLocation(shader_program, 1, "aColor");
@@ -272,8 +331,8 @@ void graphics_init() {
 	//glEnable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 	//glEnable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
-	//glEnable(GL_DEPTH_TEST);
+// 	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glDepthFunc(GL_NEVER);
@@ -291,7 +350,10 @@ static void window_draw(struct swa_window* win) {
 	glClearColor(mult * 0.8f, mult * 0.6f, mult * 0.3f, alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUniform2f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1]);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count*32, vdata.positions, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count*vdata.poslen*4, vdata.positions, GL_DYNAMIC_DRAW);
+// 	glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count*vdata.poslen*4, vdata.positions);
+// 	vdata.coloff = vertex_count*2*4;
+// 	glBufferSubData(GL_ARRAY_BUFFER, vdata.coloff, vertex_count*vdata.collen*4, vdata.colors);
 	glDrawArrays(GL_TRIANGLES, 0, vertex_count);
 	if(!swa_window_gl_swap_buffers(win)) {
 		dlg_error("swa_window_gl_swap_buffers failed");
@@ -317,9 +379,13 @@ static void window_close(struct swa_window* win) {
 
 static void window_mouse_button(struct swa_window* win,
 		const struct swa_mouse_button_event* ev) {
-	if(ev->pressed && ev->button == swa_mouse_button_left) {
-		//dlg_debug("begin resize");
-		swa_window_begin_resize(win, swa_edge_bottom_right);
+	if(ev->button == swa_mouse_button_left) {
+		if(ev->pressed) {
+			shm->keys.lmb = true;
+			//dlg_debug("begin resize");
+			swa_window_begin_resize(win, swa_edge_bottom_right);
+		} else
+			shm->keys.lmb = false;
 	}
 }
 
@@ -336,18 +402,18 @@ static void window_key(struct swa_window* win, const struct swa_key_event* ev) {
 		dlg_info("Escape pressed, exiting");
 		shm->run = false;
 	}
-	if(ev->keycode == swa_key_a) {
-		if(ev->pressed)
-			shm->input = inp_left;
-		else
-			shm->input = inp_none;
-	}
-	if(ev->keycode == swa_key_d) {
-		if(ev->pressed)
-			shm->input = inp_right;
-		else
-			shm->input = inp_none;
-	}
+// 	if(ev->keycode == swa_key_a) {
+// 		if(ev->pressed)
+// 			shm->input = inp_left;
+// 		else
+// 			shm->input = inp_none;
+// 	}
+// 	if(ev->keycode == swa_key_d) {
+// 		if(ev->pressed)
+// 			shm->input = inp_right;
+// 		else
+// 			shm->input = inp_none;
+// 	}
 	if(ev->keycode == swa_key_r) {
 		if(ev->pressed) {
 			exit_cleanup();

@@ -91,7 +91,7 @@ dep_libsoundio = subproj_libsoundio.dependency('libsoundio_static')
 
 src = files(
 	# main sources for everything
-	'src/graphics.c',
+	'src/graphics_gl.c',
 	'src/ui_logic.c',
 )
 
