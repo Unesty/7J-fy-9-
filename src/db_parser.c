@@ -201,11 +201,21 @@ int open_db(char *path) {
         }
         c = buf[i];
     }
+    struct GraphInfo {
+        uint32_t id;
+        uint32_t start;
+        uint32_t len;
+        // uint32_t type;
+        size_t idshifts_len;
+        size_t idshifts_off;
+    }gri;
+    size_t idshifts_len;
+    uint32_t *idshifts;
     //gris = mmap(sizeof(struct GraphInfo)); // later, or never if saving this in
-    gri_len++;
+    //gris_len++;
     uint32_t grlen = 0;
-    uint32_t grnl = 4; // graph data array element length
-    gri[gri].id=gri;
+    uint32_t grnl = 4; // graph data array element length in bytes
+    gri.id = 0; // currently only 1 graph
     gri.start = i; // can also be pointer to buf[] element
 
     // graph length
@@ -222,34 +232,8 @@ int open_db(char *path) {
     }
     // graph type? currently we have 1. Later different will be used for different types, but parsers can be generated from graph. We still need initial graph parser, so type may still be used later. Graph type will contain node size, data, edge data, how they are stored, etc.
     // Current graph type is a struct DataNode array with types defined in ins array, special, for parser, node defines "type" type
-
-    uint8_t gris_len;
-    struct GraphInfo {
-        uint32_t id;
-        uint32_t start;
-        uint32_t len;
-        // uint32_t type;
-        size_t idshifts_len;
-        size_t idshifts_off;
-    }gri;
-    size_t idshifts_len;
-    uint32_t *idshifts;
-    uint8_t ids_fd;
-
     if(grlen > 0) {
-        shm->ids_name[0] = 'i';
-        shm->ids_name[1] = 'd';
-        shm->ids_name[2] = 's';
-        shm->ids_name[3] = '\0';
-        ids_fd = shm_open(shm->ids_name, O_CREAT|O_EXCL|O_RDWR, S_IRUSR | S_IWUSR);
-        if (inpfd == -1) {
-            dlg_error("can't open shm %s\n", shm->ids_name);
-            //TODO: generate new name
-        }
-        idshifts = (uint32_t*)mmap(0, 32*grlen/2, PROT_READ|PROT_WRITE, MAP_SHARED, ids_fd, 0);// allocate and share biggest possibly needed memory
-        if (idshifts == MAP_FAILED) {
-            dlg_error("mmap failed\n");
-        }
+        idshifts = &buf[i];
         // create an array of node id shifts. Needed because node data lengths are different.
         uint32_t n = 0;
         uint32_t offs = gri.idshifts_off;
