@@ -1,9 +1,39 @@
-There are several ways to store nodes data in graph database
-1) id, data type, lengths, raw bits; parser will get memory location of each node, then process data types; connection type is used to store edges
-2) data type, length, pointer to raw bits; only difference from 1 is constant node length
-3) type only; parser will process each value; relative because there is no id; first half of numbers used for values, second to invoke parser procedure according to type
-4) id, type; like previous, but id makes node twice bigger, id can be used to insert node without rewriting connections of each other node in static storage
-5) id, data type, pointers to raw bits; not good solution; you have to create new table for every graph; parser has to read all data and parse it into memory; if two graphs overlap, parser has to look at both; hard to implement; if you use hash function for id, you cannot do any kind of indexing; there are some things that are very difficult with this approach
-6) length, type; best way to store data; can be indexed, but you need more space than other solutions
-7) id, number of in/out nodes, in nodes, out nodes; type is saved in in nodes and numbers are stored in out nodes;  long int data type connected to raw data type, where raw data is in out section; in nodes are just numbers; for fast access, data is stored in main memory; if data is too big, you can save only part of it and make other parts of the graph dynamic; don't work well for complex graphs; not good for searching, because you have to know what is in out nodes; only solution for small graphs; also bad for indexing
-8) out id, out id; simple, fast, easy; require a lot of memory to connect a node to multiple nodes; not good for indexing or searching; not good for large graphs; no problem for linear graphs
+There are several ways to store data in graph database
+if id is saved in position, then it is relative
+1) id, data type, lengths, raw bits;
+parser will get memory location of each node, then process data types;
+connection type is used to store edges
+2) id, data type,length, pointer to raw bits;
+only difference from 1 is constant node length
+3) id, type only;
+parser will process each value;
+relative because there is no id;
+first half of numbers used for values, second to invoke parser procedure according to type;
+example: Unicode
+4) id, type;
+like previous, but id makes node twice bigger, id can be used to insert node without rewriting connections of each other node in static storage
+5) id, data type, pointer to raw bits;
+you have to create new table for every graph;
+parser has to read all data and parse it into memory;
+if two graphs overlap, parser has to look at both;
+hard to implement;
+if you use hash function for id, you cannot do any kind of indexing;
+there are some things that are very difficult with this approach
+6) id, length, type; best way to store data;
+can be indexed, but you need more space than other solutions
+7) id, number of in/out nodes, in nodes, out nodes;
+type is saved in in nodes and numbers are stored in out nodes;
+long int data type connected to raw data type, where raw data is in out section;
+in nodes are just numbers;
+for fast access, data is stored in main memory;
+if data is too big, you can save only part of it and make other parts of the graph dynamic;
+don't work well for complex graphs;
+not good for searching, because you have to know what is in out nodes;
+not good for big graphs;
+also bad for indexing;
+8) id, out id X times;
+simple, fast, easy;
+require a lot of memory to connect a node to multiple nodes;
+not good for indexing or searching;
+not good for large graphs;
+no problem for linear graphs

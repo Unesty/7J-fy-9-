@@ -126,6 +126,29 @@ void io_init() {
     }
 	shm->pids.graphics = getpid();
 	dlg_info("grpid %d", shm->pids.graphics);
+
+	// open db file
+	int res = stat(shm->db_name, &dv.statbuf);
+    if(res == -1) {
+        dlg_error("failed to stat %s", shm->db_name); // we need a graph of errors, so we need to save parsing history in another graph
+        return;
+    }
+    db_fds[0] = open(shm->db_name, O_RDWR);
+    if(db_fds[0] == 0) {
+        dlg_error("failed to open file %s", shm->db_name);
+        return;
+    }
+    db_sz = dv.statbuf.st_size;
+    if(db_sz < 32) {
+        dlg_error("file size is less than minimal");
+    }
+	buf = mmap(NULL, db_sz, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED, db_fds[0], 0);
+
+    if(buf == MAP_FAILED) {
+        dlg_error("db mmap failed");
+        return;
+    }
+    idshifts = &buf[shm->gri.idshifts_off];
 }
 
 void ui_init() {
