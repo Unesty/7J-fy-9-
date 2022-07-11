@@ -37,3 +37,4 @@ require a lot of memory to connect a node to multiple nodes;
 not good for indexing or searching;
 not good for large graphs;
 no problem for linear graphs
+9)

@@ -91,7 +91,7 @@ uint32_t grnl = 4; // sizeof(uint32_t) graph type7 data array element length in 
 uint32_t *buf;
 
 uint8_t db_fds[100]; // to open multiple database files to connect them
-size_t db_sz = 0;
+uint32_t db_sz = 0;
 
 char inpfd;
 char* inpname;

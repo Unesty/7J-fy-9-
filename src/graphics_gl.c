@@ -1,12 +1,19 @@
-#include <swa/swa.h>
-#include <swa/key.h>
-#include <dlg/dlg.h>
 #include <string.h>
 #include <stdlib.h>
+
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
 #include <sys/stat.h>
+
+#include <sys/signal.h>
+
+#include <math.h>
+
+#include <swa/swa.h>
+#include <swa/key.h>
+#include <dlg/dlg.h>
+
 #include "shared.h"
 
 // this is important as a msvc workaround: their gl.h header is
@@ -28,15 +35,17 @@
 
 static bool premult = false;
 
+void exit_cleanup();
+
 ///////////////////////////////////////////////////////////////////
 // Graphics data
 struct Uniforms {
 	uint32_t liCamPos;
-	float iCamPos[2];
+	float iCamPos[3];
 };
 struct Uniforms uniforms = {
 	0,
-	0.0,0.0
+	0.0,0.0,1.0
 };
 // struct BVertex { // I didn't understand how to implement that
 // 	float positions[2];
@@ -83,12 +92,12 @@ char *vert_shader_text =
 "precision highp float;\n"
 "in vec3 aPos;\n"
 // "in vec3 aColor;\n"
-"uniform vec2 iCamPos;\n"
+"uniform vec3 iCamPos;\n"
 // "out vec3 vColor;\n"
 "out float vColor;\n"
 "void main()\n"
 "{\n"
-"	gl_Position = vec4(aPos[0]+iCamPos[0], aPos[1]+iCamPos[1], 0.0, 1.0);\n"
+"	gl_Position = vec4((aPos[0]+iCamPos[0])/iCamPos[2], (aPos[1]+iCamPos[1])/iCamPos[2], 0.0, 1.0);\n"
 // "	vColor = aPos[2].xxx;\n"
 "	vColor = aPos[2];\n"
 "}\n";
@@ -97,7 +106,7 @@ char *frag_shader_text =
 "precision highp float;\n"
 // "in vec3 vColor;\n"
 "in float vColor;\n"
-"uniform vec2 iCamPos;\n"
+"uniform vec3 iCamPos;\n"
 "out vec4 fColor;\n" // may be vec3, vec4 or float on different windowing systems
 "void main()\n"
 "{\n"
@@ -111,7 +120,7 @@ GLuint shader_program = 0;
 ///////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////
-//
+// Init and IPC
 
 void io_init() {
 	inpfd = shm_open(inpname, O_RDWR, S_IRUSR | S_IWUSR);
@@ -155,7 +164,7 @@ void ui_init() {
 	// allocate vertex buffer
 	// background triangle
 // 	vertexes = malloc(3*sizeof(struct BVertex));
-	vertex_count += 3;
+	vertex_count += 3+3*shm->gri.vertexcnt;
 	vdata.positions = malloc(vertex_count*vdata.poslen*4);
 	vdata.colors = malloc(vertex_count*3*4);
 // 	for(uint8_t v = 0; v < 3; v++) {
@@ -203,33 +212,86 @@ void ui_init() {
 // 	vdata.colors[6] = 0.1;
 // 	vdata.colors[7] = 0.1;
 // 	vdata.colors[8] = 1.1;
+	uint32_t p = 9; // last vdata id of last triangle + 1
 	// graph representation
 
-	// copy db buffer data to vertex buffer
-// 	for(int i = 0; i < shm->dv.statbuf.st_size; i++) {
+	// draw triangles representing graph data in vertex buffer
+	float gap = 1.5;
+	float nwidth = 0.5;
+	float ewidth = 0.005;
+	// draw nodes and out edges
+	dlg_debug("shm->gri.vertexcnt = %d", shm->gri.vertexcnt);
+	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
 // 		for(uint8_t v = 0; v < 3; v++) {
-
 // 		}
-// 	}
+		vdata.positions[p+i*9] = i*gap;
+		vdata.positions[p+i*9+1] = i*nwidth*0.01;
+		vdata.positions[p+i*9+2] = 0.6;
+		vdata.positions[p+i*9+1*3] = i*gap-nwidth*0.5;
+		vdata.positions[p+i*9+1*3+1] = i*nwidth*0.01+sqrtf(nwidth*nwidth*0.75);
+		vdata.positions[p+i*9+1*3+2] = 1;
+		vdata.positions[p+i*9+2*3] = i*gap+nwidth*0.5;
+		vdata.positions[p+i*9+2*3+1] = i*nwidth*0.01+sqrtf(nwidth*nwidth*0.75);
+		vdata.positions[p+i*9+2*3+2] = 1;
+	}
 }
 
 void ui_update() {
 	// clear color isn't used, so backend follows camera to clear background in 1 pass
-	vdata.positions[0] = -3.;
-	vdata.positions[1] = -3.;
+	vdata.positions[0] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[0]);
+	vdata.positions[1] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[1]);
+	vdata.positions[2] = 0.1+2/(uniforms.iCamPos[2]);
 
-	vdata.positions[3] = 6.;
-	vdata.positions[4] = -3.;
+	vdata.positions[3] = (6.-uniforms.iCamPos[0])*uniforms.iCamPos[2];
+	vdata.positions[4] = (-3-uniforms.iCamPos[1])*uniforms.iCamPos[2];
+	vdata.positions[5] = 0.5-0.0000001*(uniforms.iCamPos[2]);
 
-	vdata.positions[6] = -3.;
-	vdata.positions[7] = 6.;
-
+	vdata.positions[6] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[0]);
+	vdata.positions[7] = (6.*uniforms.iCamPos[2]-uniforms.iCamPos[1]);
+	vdata.positions[8] = 0.5-0.0000001*(uniforms.iCamPos[2]);
 }
 
-//
-///////////////////////////////////////////////////////////////////
+uint8_t reopened_buf = 0;
+void sig_handler(int signum) {
+	// kill child processes if any
+	if(signum == SIGTERM || signum == SIGINT) {
+		shm_unlink(inpname);
+		close(inpfd);
+		exit_cleanup();
+		// can wait for children here
+		printf("kill -%d signal handled\n", signum);
+		exit(signum);
+	}
+	if(signum == SIGBUS || signum == SIGUSR1) {
+		close(db_fds[0]);
+		dlg_debug("reopening db %d time", reopened_buf);
+		if(stat(shm->db_name, &dv.statbuf) == -1) {
+			dlg_error("failed to stat %s", shm->db_name); // we need a graph of errors, so we need to save parsing history in another graph
+			return;
+		}
+		db_fds[0] = open(shm->db_name, O_RDWR);
+		if(db_fds[0] == 0) {
+			dlg_error("failed to open file %s", shm->db_name);
+			return;
+		}
+		db_sz = dv.statbuf.st_size;
+		if(db_sz < 32) {
+			dlg_error("file size is less than minimal");
+		}
+		buf = mmap(NULL, db_sz, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED, db_fds[0], 0);
 
-void exit_cleanup();
+		if(buf == MAP_FAILED) {
+			dlg_error("reopen db mmap failed");
+			return;
+		}
+// 		idshifts = &buf[shm->gri.idshifts_off];
+		reopened_buf++;
+	}
+	dlg_debug("kill -%d signal handled\n", signum);
+}
+
+// End Init and IPC
+///////////////////////////////////////////////////////////////////
 
 GLuint create_shader(const char *source, GLenum shader_type)
 {
@@ -348,7 +410,7 @@ void graphics_init() {
 // 	glBindAttribLocation(shader_program, 1, "aColor");
 // 	glEnable(GL_FRAMEBUFFER_SRGB);
 	uniforms.liCamPos = glGetUniformLocation(shader_program, "iCamPos");
-	glUniform2f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1]);
+	glUniform3f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1], uniforms.iCamPos[2]);
 	//glBlendFunc(GL_ONE,GL_ZERO);
 	glDisable(GL_BLEND);
 	//glEnable(GL_BLEND);
@@ -372,7 +434,7 @@ static void window_draw(struct swa_window* win) {
 
 	glClearColor(mult * 0.8f, mult * 0.6f, mult * 0.3f, alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glUniform2f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1]);
+	glUniform3f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1], uniforms.iCamPos[2]);
 	glBufferData(GL_ARRAY_BUFFER, vertex_count*vdata.poslen*4, vdata.positions, GL_DYNAMIC_DRAW);
 // 	glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count*vdata.poslen*4, vdata.positions);
 // 	vdata.coloff = vertex_count*2*4;
@@ -406,17 +468,29 @@ static void window_mouse_button(struct swa_window* win,
 		if(ev->pressed) {
 			shm->keys.lmb = true;
 			//dlg_debug("begin resize");
-			swa_window_begin_resize(win, swa_edge_bottom_right);
+			//swa_window_begin_resize(win, swa_edge_bottom_right);
+			// detect intersection with UI elements, currently just node triangles
 		} else
 			shm->keys.lmb = false;
 	}
 }
 
-static void mouse_move(struct swa_window* win,
+static void window_mouse_move(struct swa_window* win,
 		const struct swa_mouse_move_event* ev) {
 // 	dlg_info("mouse moved to (%d, %d)", ev->x, ev->y);
-	uniforms.iCamPos[0] = (float)ev->x/win_dimensions.width;
-	uniforms.iCamPos[1] = -(float)ev->y/win_dimensions.height;
+	if(shm->keys.lmb) {
+		// detect intersection with UI elements, currently just node triangles
+		uniforms.iCamPos[0] += (float)ev->dx/win_dimensions.width*uniforms.iCamPos[2];
+		uniforms.iCamPos[1] += -(float)ev->dy/win_dimensions.height*uniforms.iCamPos[2];
+		ui_update();
+	}
+}
+
+static void window_mouse_wheel(struct swa_window* win,
+		float dx, float dy) {
+// 	uniforms.iCamPos[0] += dx+0.00000000000000001;
+	uniforms.iCamPos[2] -= dy+0.00000000000000001;
+	ui_update();
 }
 
 static void window_key(struct swa_window* win, const struct swa_key_event* ev) {
@@ -443,6 +517,15 @@ static void window_key(struct swa_window* win, const struct swa_key_event* ev) {
 			exit(0);
 		}
 	}
+	if(ev->keycode == swa_key_p) {
+		if(ev->pressed & !ev->repeated) {
+			dlg_info("dv.statbuf.st_size = %ld", dv.statbuf.st_size);
+			for(size_t k = 0; k < db_sz; k++) {
+				printf("%d ",buf[k]);
+			}
+			printf("\n");
+		}
+	}
 }
 
 static void window_surface_created(struct swa_window* win) {
@@ -454,14 +537,22 @@ static const struct swa_window_listener window_listener = {
 	.draw = window_draw,
 	.resize = window_resize,
 	.mouse_button = window_mouse_button,
+	.mouse_move = window_mouse_move,
+	.mouse_wheel = window_mouse_wheel,
 	.close = window_close,
 	.key = window_key,
-	.mouse_move = mouse_move,
 	.surface_created = window_surface_created
 };
 struct swa_display* dpy;
 struct swa_window* win;
 int main(int argc, char** argv, char** envp) {
+	signal(SIGINT, sig_handler); // Register signal handler
+    signal(SIGQUIT, sig_handler); // Register signal handler
+    signal(SIGBUS, sig_handler); // Register signal handler
+    signal(SIGUSR1, sig_handler); // Register signal handler
+    signal(SIGUSR2, sig_handler); // Register signal handler
+//     signal(SIGSEGV, sig_handler); // Register signal handler
+    signal(SIGTERM, sig_handler); // Register signal handler
 	if(argc < 2) {
 		printf("usage: graphics [SHM NAME]\n");
 		return 0;
@@ -471,6 +562,9 @@ int main(int argc, char** argv, char** envp) {
 		dlg_fatal("No swa backend available");
 		return EXIT_FAILURE;
 	}
+
+	glEnable(GL_MULTISAMPLE);
+	glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
 
 	struct swa_cursor cursor;
 	cursor.type = swa_cursor_right_pointer;
@@ -509,13 +603,15 @@ int main(int argc, char** argv, char** envp) {
 	}
 	inpname = argv[1];
 
-	glEnable(GL_MULTISAMPLE);
-
 	io_init();
 	ui_init();
 	graphics_init();
 
-
+	dlg_debug("most likely when %ld", dv.statbuf.st_size);
+	for(size_t k = 0; k < db_sz; k++) {
+		printf("%d ",buf[k]);
+	}
+	printf("\n");
 
 	while(shm->run) {
 		if(!swa_display_dispatch(dpy, true)) {

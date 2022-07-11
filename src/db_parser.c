@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <signal.h>
 #include <stdio.h> // we will output to graph db instead later
 #include <errno.h>
 #include <string.h>
@@ -295,10 +296,10 @@ int open_db(char* path) {
     if(db_sz < 32) {
         dlg_error("file size is less than minimal");
     }
-
-
-    buf = mmap(NULL, db_sz, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED, db_fds[0], 0);
-
+    
+    
+    size_t buf_add = 10000; // reserved size
+    buf = mmap(NULL, db_sz+buf_add, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED, db_fds[0], 0);
     if(buf == MAP_FAILED) {
         dlg_error("db mmap failed");
         return -3;
@@ -407,18 +408,55 @@ int open_db(char* path) {
         uint32_t new_idshifts_len = shm->gri.len/2+1; // biggest possible value, may be incorrect
         // allocate space if not allocated
         if(shm->gri.idshifts_len == 0) {
-            dlg_debug("new_idshifts_len = %d\nmremap space", new_idshifts_len);
-//             sleep(10);
-            buf = mremap(buf, db_sz, db_sz+new_idshifts_len, MAP_SHARED);
-            db_sz += new_idshifts_len;
+            size_t new_db_sz = db_sz+new_idshifts_len*4;
+
+            // mremap works only for 1 thread, doesn't resize file when other process mmaped file, like in this case
+            // so we send signal to other threads to mremap
+
+            dlg_debug("new_idshifts_len = %d\nappend, mremap space", new_idshifts_len);
+            sleep(10);
+            lseek(db_fds[0], 0, SEEK_END);
+            uint8_t *b = malloc(new_idshifts_len*4);
+            memset(b, 0, new_idshifts_len*4);
+            write(db_fds[0], b, new_idshifts_len*4);
+            free(b);
+            buf = mremap(buf, db_sz, new_db_sz, MAP_SHARED);
             dlg_debug("mremapped");
+
             if(buf == MAP_FAILED) {
                 dlg_error("db mremap failed");
                 return -3;
             }
+
+            res = stat(path, &dv.statbuf);
+            if(res == -1) {
+                dlg_error("failed to stat %s", path); // we need a graph of errors, so we need to save parsing history in another graph
+                return -1;
+            }
+            if(new_db_sz == dv.statbuf.st_size) {
+                db_sz = new_db_sz;
+                if(kill(shm->pids.graphics, SIGBUS)) {
+                    dlg_error("couldn't send SIGBUS signal to graphics process");
+                } else {
+                    dlg_debug("sent SIGBUS to graphics process");
+                }
+//                 if(kill(shm->pids.sound, SIGBUS)) {
+//                     dlg_debug("sent SIGBUS to graphics process");
+//                 } else {
+//                     dlg_error("couldn't send SIGBUS signal to graphics process");
+//                 }
+//                 if(kill(shm->pids.ui_logic, SIGBUS)) {
+//                     dlg_debug("sent SIGBUS to graphics process");
+//                 } else {
+//                     dlg_error("couldn't send SIGBUS signal to graphics process");
+//                 }
+            } else {
+                dlg_error("file stat says it's not resized to %ld, it was %d, now %ld", new_db_sz, db_sz, dv.statbuf.st_size);
+            }
+
             shm->gri.idshifts_len = new_idshifts_len;
-            // maybe use memcpy?
-            // memcpy(buf[shm->gri.idshifts_off+1],buf[shm->gri.idshifts_off+1+new_idshifts_len]);
+            // maybe use memmove?
+//             memmove(&buf[shm->gri.idshifts_off+1], buf[shm->gri.idshifts_off+1+new_idshifts_len], new_idshifts_len*4);
             for(uint32_t n = db_sz-1; n >= shm->gri.idshifts_off+new_idshifts_len; n--) {
                 buf[n] = buf[n-new_idshifts_len];
                 dlg_debug("buf[%d] = %d at buf[%d-%d] ? it's %d", n, buf[n-new_idshifts_len], n, new_idshifts_len, buf[n]);
@@ -451,6 +489,9 @@ int open_db(char* path) {
                 i+=inlen+outlen;
                 n++;
             }
+        } else {
+            // add all idshifts from all graphs
+            shm->gri.vertexcnt = shm->gri.idshifts_len;
         }
     }
     dlg_info("i = %d after setting idshifts", i);

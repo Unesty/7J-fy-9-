@@ -65,6 +65,7 @@ with_win32 = build_machine.system() == 'windows'
 
 
 # deps
+dep_m = cc.find_library('m', required : true)
 dep_threads = dependency('threads', required: false)
 dep_swa = dependency('swa',
 	fallback: ['swa', 'swa_dep'],
@@ -137,4 +138,4 @@ subdir('src')
 supervisor = build_target('supervisor',
 	'src/supervisor.c',
 	target_type: 'executable',
-	dependencies: [])
+	dependencies: [dep_dlg])
