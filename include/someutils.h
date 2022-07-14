@@ -82,3 +82,8 @@ int readall(FILE *in, char **dataptr, size_t *sizeptr)
 
     return READALL_OK;
 }
+
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+      __typeof__ (b) _b = (b); \
+      _a > _b ? _a : _b; })

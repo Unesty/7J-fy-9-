@@ -84,6 +84,7 @@ if disable_dlg
 	warning('disabling dlg')
 endif
 dep_gl = dependency('gl', required: true)
+dep_cglm = dependency('cglm', static: true)
 cmake = import('cmake')
 opt_var = cmake.subproject_options()
 opt_var.append_compile_args('c','-Wno-error')

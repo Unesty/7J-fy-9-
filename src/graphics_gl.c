@@ -9,6 +9,7 @@
 #include <sys/signal.h>
 
 #include <math.h>
+#include "cglm/cglm.h"
 
 #include <swa/swa.h>
 #include <swa/key.h>
@@ -42,6 +43,8 @@ void exit_cleanup();
 struct Uniforms {
 	uint32_t liCamPos;
 	float iCamPos[3];
+	uint32_t liResolution;
+	float iResolution[3];
 };
 struct Uniforms uniforms = {
 	0,
@@ -93,11 +96,12 @@ char *vert_shader_text =
 "in vec3 aPos;\n"
 // "in vec3 aColor;\n"
 "uniform vec3 iCamPos;\n"
+"uniform vec3 iResolution;\n"
 // "out vec3 vColor;\n"
 "out float vColor;\n"
 "void main()\n"
 "{\n"
-"	gl_Position = vec4((aPos[0]+iCamPos[0])/iCamPos[2], (aPos[1]+iCamPos[1])/iCamPos[2], 0.0, 1.0);\n"
+"	gl_Position = vec4((aPos[0]+iCamPos[0])*(iResolution[1]/iResolution[0])/iCamPos[2], (aPos[1]+iCamPos[1])/iCamPos[2], 0.0, 1.0);\n"
 // "	vColor = aPos[2].xxx;\n"
 "	vColor = aPos[2];\n"
 "}\n";
@@ -164,7 +168,7 @@ void ui_init() {
 	// allocate vertex buffer
 	// background triangle
 // 	vertexes = malloc(3*sizeof(struct BVertex));
-	vertex_count += 3+3*shm->gri.vertexcnt;
+	vertex_count += 3+3*shm->gri.vertexcnt*shm->gri.vertexcnt;
 	vdata.positions = malloc(vertex_count*vdata.poslen*4);
 	vdata.colors = malloc(vertex_count*3*4);
 // 	for(uint8_t v = 0; v < 3; v++) {
@@ -215,10 +219,18 @@ void ui_init() {
 	uint32_t p = 9; // last vdata id of last triangle + 1
 	// graph representation
 
+	// set nodes positions if not set
+	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
+		uint32_t ins = buf[idshifts[i]];
+		for(uint32_t in = 0; in < ins; in++) {
+// 			if(buf[idshifts[i]+2+in]
+		}
+	}
 	// draw triangles representing graph data in vertex buffer
 	float gap = 1.5;
+	float egap = 0.05;
 	float nwidth = 0.5;
-	float ewidth = 0.005;
+	float ewidth = 0.05;
 	// draw nodes and out edges
 	dlg_debug("shm->gri.vertexcnt = %d", shm->gri.vertexcnt);
 	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
@@ -233,6 +245,46 @@ void ui_init() {
 		vdata.positions[p+i*9+2*3] = i*gap+nwidth*0.5;
 		vdata.positions[p+i*9+2*3+1] = i*nwidth*0.01+sqrtf(nwidth*nwidth*0.75);
 		vdata.positions[p+i*9+2*3+2] = 1;
+		// draw edge for each out of this node
+		uint32_t outs = buf[idshifts[i]+1];
+		for(uint32_t o = 1; o <= outs; o++) {
+			vdata.positions[p+i*9+o*9] = i*gap+o*egap;
+			vdata.positions[p+i*9+1+o*9] = i*nwidth*0.01;
+			vdata.positions[p+i*9+2+o*9] = 0.6;
+			vdata.positions[p+i*9+1*3+o*9] = i*gap+o*egap-ewidth*0.5;
+			vdata.positions[p+i*9+1*3+1+o*9] = i*nwidth*0.01+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+1*3+2+o*9] = 1;
+			vdata.positions[p+i*9+2*3+o*9] = i*gap+o*egap+ewidth*0.5;
+			vdata.positions[p+i*9+2*3+1+o*9] = i*nwidth*0.01+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			// draw connenction by moving furthest vertex to target, moving closest can be done instead
+			// get square of distances
+			float d0 = (vdata.positions[p+i*9+o*9]*vdata.positions[p+i*9+o*9]+vdata.positions[p+i*9+1+o*9]*vdata.positions[p+i*9+1+o*9]);
+			float d1 = (vdata.positions[p+i*9+1*3+o*9]*vdata.positions[p+i*9+1*3+o*9]+vdata.positions[p+i*9+1*3+1+o*9]*vdata.positions[p+i*9+1*3+1+o*9]);
+			float d2 = (vdata.positions[p+i*9+2*3+o*9]*vdata.positions[p+i*9+2*3+o*9]+vdata.positions[p+i*9+2*3+1+o*9]*vdata.positions[p+i*9+2*3+1+o*9]);
+			// get target in id
+			uint32_t tin = 0;
+			for(uint32_t in = 0;  in < buf[buf[idshifts[i]+2+o]]; in++) {
+				if(i == buf[buf[idshifts[i]+2+o]+2+in]) {
+					tin = in;
+					break;
+				}
+			}
+			// move furthest to target
+			if(d0 > d1 && d0 > d2) {
+				dlg_debug("move0 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+				vdata.positions[p+i*9+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+			} else {
+				if(d1 > d2) {
+					dlg_debug("move1 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+1*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+					vdata.positions[p+i*9+1*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+				} else {
+					dlg_debug("move2 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+2*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+					vdata.positions[p+i*9+2*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+				}
+			}
+			p+=9;
+		}
 	}
 }
 
@@ -411,6 +463,10 @@ void graphics_init() {
 // 	glEnable(GL_FRAMEBUFFER_SRGB);
 	uniforms.liCamPos = glGetUniformLocation(shader_program, "iCamPos");
 	glUniform3f(uniforms.liCamPos, uniforms.iCamPos[0], uniforms.iCamPos[1], uniforms.iCamPos[2]);
+	uniforms.liResolution = glGetUniformLocation(shader_program, "iResolution");
+	uniforms.iResolution[0] = 640;
+	uniforms.iResolution[1] = 480;
+	glUniform3f(uniforms.liResolution, uniforms.iResolution[0], uniforms.iResolution[1], uniforms.iResolution[2]);
 	//glBlendFunc(GL_ONE,GL_ZERO);
 	glDisable(GL_BLEND);
 	//glEnable(GL_BLEND);
@@ -456,6 +512,10 @@ static void window_resize(struct swa_window* win, uint32_t w, uint32_t h) {
 	win_dimensions.width = w;
 	win_dimensions.height = h;
 	glViewport(win_dimensions.x, win_dimensions.y, win_dimensions.width, win_dimensions.height);
+	uniforms.iResolution[0] = w;
+	uniforms.iResolution[1] = h;
+	// TODO: find the way to get pixel aspect ratio
+	glUniform3f(uniforms.liResolution, uniforms.iResolution[0], uniforms.iResolution[1], uniforms.iResolution[2]);
 }
 
 static void window_close(struct swa_window* win) {
@@ -564,6 +624,7 @@ int main(int argc, char** argv, char** envp) {
 	}
 
 	glEnable(GL_MULTISAMPLE);
+// 	glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
 
 	struct swa_cursor cursor;

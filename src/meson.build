@@ -2,7 +2,7 @@ graphics = build_target('graphics_gl',
 	'graphics_gl.c',
 	target_type: 'executable',
 	include_directories: inc,
-	dependencies: [dep_dlg, dep_swa, dep_gl, dep_m])
+	dependencies: [dep_dlg, dep_swa, dep_gl, dep_m, dep_cglm])
 
 # ui_logic = build_target('ui_logic',
 # 	'ui_logic.c',
