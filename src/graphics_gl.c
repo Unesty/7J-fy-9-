@@ -17,6 +17,8 @@
 
 #include "shared.h"
 
+#include "../models/nums.h"
+
 // this is important as a msvc workaround: their gl.h header is
 // broken windows.h has to be included first (which is pulled by stdlib.h)
 // Thanks Bill!
@@ -48,7 +50,9 @@ struct Uniforms {
 };
 struct Uniforms uniforms = {
 	0,
-	0.0,0.0,1.0
+	0,0,1,
+	0,
+	640, 480,
 };
 // struct BVertex { // I didn't understand how to implement that
 // 	float positions[2];
@@ -163,7 +167,11 @@ void io_init() {
     }
     idshifts = &buf[shm->gri.idshifts_off];
 }
-
+// TODO: move these visual settings to graph
+float gap = 1.5;
+float egap = 0.05;
+float nwidth = 0.5;
+float ewidth = 0.05;
 void ui_init() {
 	// allocate vertex buffer
 	// background triangle
@@ -227,36 +235,49 @@ void ui_init() {
 		}
 	}
 	// draw triangles representing graph data in vertex buffer
-	float gap = 1.5;
-	float egap = 0.05;
-	float nwidth = 0.5;
-	float ewidth = 0.05;
+
 	// draw nodes and out edges
 	dlg_debug("shm->gri.vertexcnt = %d", shm->gri.vertexcnt);
 	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
 // 		for(uint8_t v = 0; v < 3; v++) {
 // 		}
-		vdata.positions[p+i*9] = i*gap;
-		vdata.positions[p+i*9+1] = i*nwidth*0.01;
+		float npos[2] = {i*gap, i*nwidth*0.01};
+		vdata.positions[p+i*9] = npos[0];
+		vdata.positions[p+i*9+1] = npos[1];
 		vdata.positions[p+i*9+2] = 0.6;
-		vdata.positions[p+i*9+1*3] = i*gap-nwidth*0.5;
-		vdata.positions[p+i*9+1*3+1] = i*nwidth*0.01+sqrtf(nwidth*nwidth*0.75);
+		vdata.positions[p+i*9+1*3] = npos[0]-nwidth*0.5;
+		vdata.positions[p+i*9+1*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
 		vdata.positions[p+i*9+1*3+2] = 1;
-		vdata.positions[p+i*9+2*3] = i*gap+nwidth*0.5;
-		vdata.positions[p+i*9+2*3+1] = i*nwidth*0.01+sqrtf(nwidth*nwidth*0.75);
+		vdata.positions[p+i*9+2*3] = npos[0]+nwidth*0.5;
+		vdata.positions[p+i*9+2*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
 		vdata.positions[p+i*9+2*3+2] = 1;
+		// draw node ID number
+		// TODO
+
 		// draw edge for each out of this node
 		uint32_t outs = buf[idshifts[i]+1];
 		for(uint32_t o = 1; o <= outs; o++) {
-			vdata.positions[p+i*9+o*9] = i*gap+o*egap;
-			vdata.positions[p+i*9+1+o*9] = i*nwidth*0.01;
+			vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
+			vdata.positions[p+i*9+1+o*9] = npos[1];
 			vdata.positions[p+i*9+2+o*9] = 0.6;
-			vdata.positions[p+i*9+1*3+o*9] = i*gap+o*egap-ewidth*0.5;
-			vdata.positions[p+i*9+1*3+1+o*9] = i*nwidth*0.01+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
 			vdata.positions[p+i*9+1*3+2+o*9] = 1;
-			vdata.positions[p+i*9+2*3+o*9] = i*gap+o*egap+ewidth*0.5;
-			vdata.positions[p+i*9+2*3+1+o*9] = i*nwidth*0.01+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
 			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			p+=9;
+			// second triangle for connenction
+			vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
+			vdata.positions[p+i*9+1+o*9] = npos[1];
+			vdata.positions[p+i*9+2+o*9] = 0.6;
+			vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+1*3+2+o*9] = 1;
+			vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+
 			// draw connenction by moving furthest vertex to target, moving closest can be done instead
 			// get square of distances
 			float d0 = (vdata.positions[p+i*9+o*9]*vdata.positions[p+i*9+o*9]+vdata.positions[p+i*9+1+o*9]*vdata.positions[p+i*9+1+o*9]);
@@ -284,14 +305,30 @@ void ui_init() {
 				}
 			}
 			p+=9;
+			// draw target node ID number and custom visual, if it exists
+			// TODO
+		}
+		// draw number for each in to this node
+		uint32_t ins = buf[idshifts[i]+1];
+		for(uint32_t o = 1; o <= ins; o++) {
+			vdata.positions[p+i*9+o*9] = npos[0]-o*egap;
+			vdata.positions[p+i*9+1+o*9] = npos[1];
+			vdata.positions[p+i*9+2+o*9] = 0.6;
+			vdata.positions[p+i*9+1*3+o*9] = npos[0]-o*egap-ewidth*0.5;
+			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+1*3+2+o*9] = 1;
+			vdata.positions[p+i*9+2*3+o*9] = npos[0]-o*egap+ewidth*0.5;
+			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			p+=9;
 		}
 	}
 }
 
 void ui_update() {
 	// clear color isn't used, so backend follows camera to clear background in 1 pass
-	vdata.positions[0] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[0]);
-	vdata.positions[1] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[1]);
+	vdata.positions[0] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[0])*uniforms.iCamPos[2];
+	vdata.positions[1] = (-3*uniforms.iCamPos[2]-uniforms.iCamPos[1])*uniforms.iCamPos[2];
 	vdata.positions[2] = 0.1+2/(uniforms.iCamPos[2]);
 
 	vdata.positions[3] = (6.-uniforms.iCamPos[0])*uniforms.iCamPos[2];
@@ -343,6 +380,160 @@ void sig_handler(int signum) {
 }
 
 // End Init and IPC
+///////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////
+// UI interaction
+enum SelectStates {
+	SelectingBackground,
+	SelectingNode,
+	SelectingOutEdge,
+	SelectingInEdge,
+} select_state;
+enum SelectStates prev_select_state;
+uint32_t selected_node = 0;
+uint32_t prev_selected_edge = 0;
+uint32_t selected_edge = 0;
+float tri_area(float v0[2], float v1[2], float v2[2]) {
+    return fabsf((v0[0]*(v1[1]-v2[1]) + v1[0]*(v2[1]-v0[1])+ v2[0]*(v0[1]-v1[1]))/2.0f);
+}
+
+bool tri_intersect(float v0[2], float v1[2], float v2[2], float pos[2]) {
+    float A = tri_area (v0, v1, v2);
+    float A1 = tri_area (pos, v1, v2);
+    float A2 = tri_area (v0, pos, v2);
+    float A3 = tri_area (v0, v1, pos);
+	dlg_debug("area %f", fabsf(A-A1-A2-A3));
+    return fabsf(A-A1-A2-A3) < 10e-8;
+}
+
+bool mesh_intersect(float *points[2], uint32_t len, float pos[2]) {
+    // here check if point is inside mesh
+    uint32_t i = 0;
+    while(i < len - 2) {
+        if(tri_intersect(points[i], points[i+1], points[i+2], pos))
+            return true;
+        i++;
+	}
+	return false;
+}
+
+void pick_element(float mpos[2]) {
+	// can also use single pixel GPU pass, if there is too many elements
+
+	prev_select_state = select_state;
+	// check node intersections
+	uint32_t n = 1;
+	dlg_debug("mpos = %f %f", mpos[0], mpos[1]);
+	vdata.positions[0] = mpos[0];
+	vdata.positions[1] = mpos[1];
+	dlg_debug("V %fx%f %fx%f %fx%f", vdata.positions[0], vdata.positions[1], vdata.positions[3], vdata.positions[4], vdata.positions[6],  vdata.positions[7]);
+	while(n < shm->gri.vertexcnt) {
+		dlg_debug("V %fx%f %fx%f %fx%f", vdata.positions[n*9], vdata.positions[n*9+1], vdata.positions[n*9+3], vdata.positions[n*9+4], vdata.positions[n*9+6],  vdata.positions[n*9+7]);
+		if(tri_intersect(&vdata.positions[n*9], &vdata.positions[n*9+3], &vdata.positions[n*9+6], mpos)) {
+			select_state = SelectingNode;
+			selected_node = n;
+			dlg_debug("selected %d", n);
+			return;
+		}
+		n++;
+	}
+	// check edge intersections
+
+	select_state = SelectingBackground;
+}
+
+void update_node(uint32_t i) {
+	dlg_debug("TODO: add pos, color, mesh start, length nodes to graph to make this possible to implement");
+	return;
+	uint32_t p = 0; // mesh start
+// 		for(uint8_t v = 0; v < 3; v++) {
+// 		}
+	float npos[2] = {i*gap, i*nwidth*0.01};
+	vdata.positions[p+i*9] = npos[0];
+	vdata.positions[p+i*9+1] = npos[1];
+	vdata.positions[p+i*9+2] = 0.6;
+	vdata.positions[p+i*9+1*3] = npos[0]-nwidth*0.5;
+	vdata.positions[p+i*9+1*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
+	vdata.positions[p+i*9+1*3+2] = 1;
+	vdata.positions[p+i*9+2*3] = npos[0]+nwidth*0.5;
+	vdata.positions[p+i*9+2*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
+	vdata.positions[p+i*9+2*3+2] = 1;
+	// draw node ID number
+	// TODO
+
+	// draw edge for each out of this node
+	uint32_t outs = buf[idshifts[i]+1];
+	for(uint32_t o = 1; o <= outs; o++) {
+		vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
+		vdata.positions[p+i*9+1+o*9] = npos[1];
+		vdata.positions[p+i*9+2+o*9] = 0.6;
+		vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+		vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+1*3+2+o*9] = 1;
+		vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+		vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+2*3+2+o*9] = 1;
+		p+=9;
+		// second triangle for connenction
+		vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
+		vdata.positions[p+i*9+1+o*9] = npos[1];
+		vdata.positions[p+i*9+2+o*9] = 0.6;
+		vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+		vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+1*3+2+o*9] = 1;
+		vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+		vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+2*3+2+o*9] = 1;
+
+		// draw connenction by moving furthest vertex to target, moving closest can be done instead
+		// get square of distances
+		float d0 = (vdata.positions[p+i*9+o*9]*vdata.positions[p+i*9+o*9]+vdata.positions[p+i*9+1+o*9]*vdata.positions[p+i*9+1+o*9]);
+		float d1 = (vdata.positions[p+i*9+1*3+o*9]*vdata.positions[p+i*9+1*3+o*9]+vdata.positions[p+i*9+1*3+1+o*9]*vdata.positions[p+i*9+1*3+1+o*9]);
+		float d2 = (vdata.positions[p+i*9+2*3+o*9]*vdata.positions[p+i*9+2*3+o*9]+vdata.positions[p+i*9+2*3+1+o*9]*vdata.positions[p+i*9+2*3+1+o*9]);
+		// get target in id
+		uint32_t tin = 0;
+		for(uint32_t in = 0;  in < buf[buf[idshifts[i]+2+o]]; in++) {
+			if(i == buf[buf[idshifts[i]+2+o]+2+in]) {
+				tin = in;
+				break;
+			}
+		}
+		// move furthest to target
+		if(d0 > d1 && d0 > d2) {
+			dlg_debug("move0 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+			vdata.positions[p+i*9+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+		} else {
+			if(d1 > d2) {
+				dlg_debug("move1 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+1*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+				vdata.positions[p+i*9+1*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+			} else {
+				dlg_debug("move2 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+2*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+				vdata.positions[p+i*9+2*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+			}
+		}
+		p+=9;
+		// draw target node ID number and custom visual, if it exists
+		// TODO
+	}
+	// draw number for each in to this node
+	uint32_t ins = buf[idshifts[i]+1];
+	for(uint32_t o = 1; o <= ins; o++) {
+		vdata.positions[p+i*9+o*9] = npos[0]-o*egap;
+		vdata.positions[p+i*9+1+o*9] = npos[1];
+		vdata.positions[p+i*9+2+o*9] = 0.6;
+		vdata.positions[p+i*9+1*3+o*9] = npos[0]-o*egap-ewidth*0.5;
+		vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+1*3+2+o*9] = 1;
+		vdata.positions[p+i*9+2*3+o*9] = npos[0]-o*egap+ewidth*0.5;
+		vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+		vdata.positions[p+i*9+2*3+2+o*9] = 1;
+		p+=9;
+	}
+
+}
+
+// End UI interaction
 ///////////////////////////////////////////////////////////////////
 
 GLuint create_shader(const char *source, GLenum shader_type)
@@ -537,12 +728,33 @@ static void window_mouse_button(struct swa_window* win,
 
 static void window_mouse_move(struct swa_window* win,
 		const struct swa_mouse_move_event* ev) {
-// 	dlg_info("mouse moved to (%d, %d)", ev->x, ev->y);
 	if(shm->keys.lmb) {
+	dlg_info("mouse moved to (%f, %f)", (float)ev->x/win_dimensions.width, (float)ev->y/win_dimensions.height);
+	dlg_info("iCP = (%f, %f, %f)", uniforms.iCamPos[0], uniforms.iCamPos[1], uniforms.iCamPos[2]);
 		// detect intersection with UI elements, currently just node triangles
-		uniforms.iCamPos[0] += (float)ev->dx/win_dimensions.width*uniforms.iCamPos[2];
-		uniforms.iCamPos[1] += -(float)ev->dy/win_dimensions.height*uniforms.iCamPos[2];
-		ui_update();
+		float aspect = (uniforms.iResolution[1]/uniforms.iResolution[0]);
+		pick_element((float[2]){((float)ev->x/win_dimensions.width*2-1+uniforms.iCamPos[0])*uniforms.iCamPos[2]/aspect,
+			(1-(float)ev->y/win_dimensions.height*2+uniforms.iCamPos[1])*uniforms.iCamPos[2]});
+		switch(select_state) {
+			case SelectingBackground:
+			uniforms.iCamPos[0] += (float)ev->dx/win_dimensions.width*uniforms.iCamPos[2]/aspect;
+			uniforms.iCamPos[1] += -(float)ev->dy/win_dimensions.height*uniforms.iCamPos[2];
+			ui_update();
+			break;
+			case SelectingNode:
+				// move node
+				// move node's, edge's vertexes directly and change color
+				// TODO: update pos, color edges in a graph, that should be done in this procedure too
+				//update_node(selected_node);
+
+			break;
+			case SelectingInEdge:
+				// connect to out
+			break;
+			case SelectingOutEdge:
+				// connect to in
+			break;
+		}
 	}
 }
 
@@ -573,6 +785,7 @@ static void window_key(struct swa_window* win, const struct swa_key_event* ev) {
 // 	}
 	if(ev->keycode == swa_key_r) {
 		if(ev->pressed) {
+			system("ninja");
 			exit_cleanup();
 			exit(0);
 		}

@@ -278,7 +278,7 @@ int open_db(char* path) {
                 dlg_error("failed to stat %s", path); // we need a graph of errors, so we need to save parsing history in another graph
                 return -1;
             }
-            if(new_db_sz == dv.statbuf.st_size) {
+            if(new_db_sz == (size_t)dv.statbuf.st_size) {
                 db_sz = new_db_sz;
                 if(kill(shm->pids.graphics, SIGBUS)) {
                     dlg_error("couldn't send SIGBUS signal to graphics process");
@@ -377,12 +377,13 @@ int run_db_7(uint32_t grn) {
         nodeskip0,
         nodeskip1,
         nodeskip2,
-        nodetype,
-        nodebit,
-        nodeopcode,
+        nodetype, // To mark, that node has a type. Also it must have additional type data including edge count, TODO. Data can be used by operations by iterating ins and processing outs from 0.
+        nodebit, // This type has 1 bit of information stored in edge section as 0 or 1. Other types also store information in out edges.
+        nodeopcode, // This type that node has opcode type. Opcode contain code number, arguments with specific types. For example mov_u8 is 0, nodeu8, noderegisteru8.
         nodeu8,
         nodeu32,
         nodearray,
+        nodef32,
     };
     mems = mmap(NULL,             // address
                       fnmemsz,             // size
