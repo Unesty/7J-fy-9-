@@ -1,4 +1,6 @@
-This text must not be used in final product, or as a doc for it.
+This text must not be used in final product, or as a doc for it, but can be used during development.
+
+(%5) This is rough progress bar.
 
 Project will have a graph database and compiler binary executable, that contains header parser.
 Header parser should have functionality to compile and run parsers for graphs stored in database.
@@ -6,17 +8,22 @@ Header parser should have functionality to compile and run parsers for graphs st
 
 Visual part
 
-1. Graph Viewer/Editor
-1.1 Graph
+1. Graph Viewer/Editor (%10)
+1.1 Graph(25%)
 Nodes and edges can represent other nodes and edges.
 It can look like nodes and edges inside nodes and edges.
 This representation can be used to visualize
  abstraction.
 Each modification will be saved in graph of modifications.
-1.1.1 Node
-1.1.2 Edge
-1.2 Navigation
+1.1.1 Node(25%)
+1.1.2 Edge(50%)
+1.2 Navigation(5%)
+1.2.1 Camera movement
+1.2.2 Following edges
+1.2.3 Search graph
 1.3 Edit tools
+1.3.1 Add/delete node
+1.3.2 Edit edge
 2. UI editor
 2.1 Views
 2.2 3d Models
@@ -40,6 +47,7 @@ Each modification will be saved in graph of modifications.
 Query, for example, is a graph, results may be completely or partially same as it.
 2.4.2 Edit
 Edit, like, copy, paste, cut, delete, so on.
+They can be accessed from menu, search, shortcut, gesture.
 2.4.2.1 Transform
 Position, rotation, scale. Instead of hierarchy there is a graph with different relationship functions.
 2.4.2.2 Value 
