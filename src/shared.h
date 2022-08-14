@@ -18,7 +18,7 @@ struct Pids {
     int ui_logic, graphics, sound, db_server;
 };
 
-
+typedef uint32_t dbp; // pointer to database buffer value
 
 struct SharedMem {
     //////////////////////////////////////////
@@ -51,13 +51,14 @@ struct SharedMem {
     //////////////////////////////////////////
     // shared graphs metadata
     struct GraphInfo {
+        dbp mdstart;
         uint32_t id;
-        uint32_t start;
-        uint32_t len;
-        uint32_t vertexcnt;
-        uint32_t type;
-        uint32_t idshifts_len;
-        uint32_t idshifts_off;
+        dbp start;
+        dbp plen;
+        dbp pvertexcnt;
+        dbp ptype;
+        dbp pidshifts_len;
+        dbp pidshifts_off;
     }gri;
     //
     //////////////////////////////////////////

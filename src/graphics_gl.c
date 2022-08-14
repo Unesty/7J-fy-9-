@@ -165,7 +165,8 @@ void io_init() {
         dlg_error("db mmap failed");
         return;
     }
-    idshifts = &buf[shm->gri.idshifts_off];
+//     idshifts = &buf[shm->gri.idshifts_off]; // WARNING: no copying!
+    idshifts = &buf[buf[shm->gri.pidshifts_off]];
 }
 // TODO: move these visual settings to graph
 float gap = 1.5;
@@ -173,12 +174,16 @@ float egap = 0.05;
 float nwidth = 0.5;
 float ewidth = 0.05;
 void ui_init() {
+// 	dbp idshifts[buf[shm->gri.pidshifts_len]];
+// 	*idshifts = buf[shm->gri.pidshifts_off];
+	uint32_t vdlen = buf[shm->gri.pvertexcnt];
 	// allocate vertex buffer
 	// background triangle
 // 	vertexes = malloc(3*sizeof(struct BVertex));
-	vertex_count += 3+3*shm->gri.vertexcnt*shm->gri.vertexcnt;
+	vertex_count += 3+3*buf[shm->gri.pvertexcnt]*buf[shm->gri.pvertexcnt];
 	vdata.positions = malloc(vertex_count*vdata.poslen*4);
-	vdata.colors = malloc(vertex_count*3*4);
+// 	vdata.colors = malloc(vertex_count*3*4); // currently unused. TODO: implement colors in other array than positions
+	float* poss = vdata.positions;
 // 	for(uint8_t v = 0; v < 3; v++) {
 // 		vertexes[v]
 // 	}
@@ -198,28 +203,28 @@ void ui_init() {
 // 	vertexes[2].positions[0] = -1.;
 // 	vertexes[2].positions[1] = 3.;
 
-	vdata.positions[0] = -3.;
-	vdata.positions[1] = -3.;
+	poss[0] = -3.;
+	poss[1] = -3.;
 
-	vdata.positions[2] = 0.; // black
+	poss[2] = 0.; // black
 
 // 	vdata.colors[0] = 1.1;
 // 	vdata.colors[1] = 0.1;
 // 	vdata.colors[2] = 0.1;
 
-	vdata.positions[3] = 6.;
-	vdata.positions[4] = -3.;
+	poss[3] = 6.;
+	poss[4] = -3.;
 
-	vdata.positions[5] = 4.; // white
+	poss[5] = 4.; // white
 
 // 	vdata.colors[3] = 0.1;
 // 	vdata.colors[4] = 1.0;
 // 	vdata.colors[5] = 0.1;
 
-	vdata.positions[6] = -3.;
-	vdata.positions[7] = 6.;
+	poss[6] = -3.;
+	poss[7] = 6.;
 
-	vdata.positions[8] = -2.; // also black, but with bigger value in interpolation
+	poss[8] = -2.; // also black, but with bigger value in interpolation
 
 // 	vdata.colors[6] = 0.1;
 // 	vdata.colors[7] = 0.1;
@@ -228,7 +233,7 @@ void ui_init() {
 	// graph representation
 
 	// set nodes positions if not set
-	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
+	for(uint32_t i = 0; i < vdlen; i++) {
 		uint32_t ins = buf[idshifts[i]];
 		for(uint32_t in = 0; in < ins; in++) {
 // 			if(buf[idshifts[i]+2+in]
@@ -237,52 +242,52 @@ void ui_init() {
 	// draw triangles representing graph data in vertex buffer
 
 	// draw nodes and out edges
-	dlg_debug("shm->gri.vertexcnt = %d", shm->gri.vertexcnt);
-	for(uint32_t i = 0; i < shm->gri.vertexcnt; i++) {
+	dlg_debug("buf[shm->gri.pvertexcnt] = %d", vdlen);
+	for(uint32_t i = 0; i < vdlen; i++) {
 // 		for(uint8_t v = 0; v < 3; v++) {
 // 		}
 		float npos[2] = {i*gap, i*nwidth*0.01};
-		vdata.positions[p+i*9] = npos[0];
-		vdata.positions[p+i*9+1] = npos[1];
-		vdata.positions[p+i*9+2] = 0.6;
-		vdata.positions[p+i*9+1*3] = npos[0]-nwidth*0.5;
-		vdata.positions[p+i*9+1*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
-		vdata.positions[p+i*9+1*3+2] = 1;
-		vdata.positions[p+i*9+2*3] = npos[0]+nwidth*0.5;
-		vdata.positions[p+i*9+2*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
-		vdata.positions[p+i*9+2*3+2] = 1;
+		poss[p+i*9] = npos[0];
+		poss[p+i*9+1] = npos[1];
+		poss[p+i*9+2] = 0.6;
+		poss[p+i*9+1*3] = npos[0]-nwidth*0.5;
+		poss[p+i*9+1*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
+		poss[p+i*9+1*3+2] = 1;
+		poss[p+i*9+2*3] = npos[0]+nwidth*0.5;
+		poss[p+i*9+2*3+1] = npos[1]+sqrtf(nwidth*nwidth*0.75);
+		poss[p+i*9+2*3+2] = 1;
 		// draw node ID number
 		// TODO
 
 		// draw edge for each out of this node
 		uint32_t outs = buf[idshifts[i]+1];
 		for(uint32_t o = 1; o <= outs; o++) {
-			vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
-			vdata.positions[p+i*9+1+o*9] = npos[1];
-			vdata.positions[p+i*9+2+o*9] = 0.6;
-			vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
-			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+1*3+2+o*9] = 1;
-			vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
-			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			poss[p+i*9+o*9] = npos[0]+o*egap;
+			poss[p+i*9+1+o*9] = npos[1];
+			poss[p+i*9+2+o*9] = 0.6;
+			poss[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+			poss[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+1*3+2+o*9] = 1;
+			poss[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+			poss[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+2*3+2+o*9] = 1;
 			p+=9;
 			// second triangle for connenction
-			vdata.positions[p+i*9+o*9] = npos[0]+o*egap;
-			vdata.positions[p+i*9+1+o*9] = npos[1];
-			vdata.positions[p+i*9+2+o*9] = 0.6;
-			vdata.positions[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
-			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+1*3+2+o*9] = 1;
-			vdata.positions[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
-			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			poss[p+i*9+o*9] = npos[0]+o*egap;
+			poss[p+i*9+1+o*9] = npos[1];
+			poss[p+i*9+2+o*9] = 0.6;
+			poss[p+i*9+1*3+o*9] = npos[0]+o*egap-ewidth*0.5;
+			poss[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+1*3+2+o*9] = 1;
+			poss[p+i*9+2*3+o*9] = npos[0]+o*egap+ewidth*0.5;
+			poss[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+2*3+2+o*9] = 1;
 
 			// draw connenction by moving furthest vertex to target, moving closest can be done instead
 			// get square of distances
-			float d0 = (vdata.positions[p+i*9+o*9]*vdata.positions[p+i*9+o*9]+vdata.positions[p+i*9+1+o*9]*vdata.positions[p+i*9+1+o*9]);
-			float d1 = (vdata.positions[p+i*9+1*3+o*9]*vdata.positions[p+i*9+1*3+o*9]+vdata.positions[p+i*9+1*3+1+o*9]*vdata.positions[p+i*9+1*3+1+o*9]);
-			float d2 = (vdata.positions[p+i*9+2*3+o*9]*vdata.positions[p+i*9+2*3+o*9]+vdata.positions[p+i*9+2*3+1+o*9]*vdata.positions[p+i*9+2*3+1+o*9]);
+			float d0 = (poss[p+i*9+o*9]*poss[p+i*9+o*9]+poss[p+i*9+1+o*9]*poss[p+i*9+1+o*9]);
+			float d1 = (poss[p+i*9+1*3+o*9]*poss[p+i*9+1*3+o*9]+poss[p+i*9+1*3+1+o*9]*poss[p+i*9+1*3+1+o*9]);
+			float d2 = (poss[p+i*9+2*3+o*9]*poss[p+i*9+2*3+o*9]+poss[p+i*9+2*3+1+o*9]*poss[p+i*9+2*3+1+o*9]);
 			// get target in id
 			uint32_t tin = 0;
 			for(uint32_t in = 0;  in < buf[buf[idshifts[i]+2+o]]; in++) {
@@ -293,15 +298,15 @@ void ui_init() {
 			}
 			// move furthest to target
 			if(d0 > d1 && d0 > d2) {
-				dlg_debug("move0 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
-				vdata.positions[p+i*9+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+				dlg_debug("move0 n %d c %d from %f to %f n %d, c %d", i, o, poss[p+i*9+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+				poss[p+i*9+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
 			} else {
 				if(d1 > d2) {
-					dlg_debug("move1 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+1*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
-					vdata.positions[p+i*9+1*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+					dlg_debug("move1 n %d c %d from %f to %f n %d, c %d", i, o, poss[p+i*9+1*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+					poss[p+i*9+1*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
 				} else {
-					dlg_debug("move2 n %d c %d from %f to %f n %d, c %d", i, o, vdata.positions[p+i*9+2*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
-					vdata.positions[p+i*9+2*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
+					dlg_debug("move2 n %d c %d from %f to %f n %d, c %d", i, o, poss[p+i*9+2*3+o*9], buf[idshifts[i]+2+o]*gap-tin*egap, buf[idshifts[i]+2+o], buf[buf[idshifts[i]+2+o]+2+tin]);
+					poss[p+i*9+2*3+o*9] = buf[idshifts[i]+2+o]*gap-tin*egap; // calculate target position, because it's not stored yet
 				}
 			}
 			p+=9;
@@ -311,15 +316,15 @@ void ui_init() {
 		// draw number for each in to this node
 		uint32_t ins = buf[idshifts[i]+1];
 		for(uint32_t o = 1; o <= ins; o++) {
-			vdata.positions[p+i*9+o*9] = npos[0]-o*egap;
-			vdata.positions[p+i*9+1+o*9] = npos[1];
-			vdata.positions[p+i*9+2+o*9] = 0.6;
-			vdata.positions[p+i*9+1*3+o*9] = npos[0]-o*egap-ewidth*0.5;
-			vdata.positions[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+1*3+2+o*9] = 1;
-			vdata.positions[p+i*9+2*3+o*9] = npos[0]-o*egap+ewidth*0.5;
-			vdata.positions[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
-			vdata.positions[p+i*9+2*3+2+o*9] = 1;
+			poss[p+i*9+o*9] = npos[0]-o*egap;
+			poss[p+i*9+1+o*9] = npos[1];
+			poss[p+i*9+2+o*9] = 0.6;
+			poss[p+i*9+1*3+o*9] = npos[0]-o*egap-ewidth*0.5;
+			poss[p+i*9+1*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+1*3+2+o*9] = 1;
+			poss[p+i*9+2*3+o*9] = npos[0]-o*egap+ewidth*0.5;
+			poss[p+i*9+2*3+1+o*9] = npos[1]+sqrtf(ewidth*ewidth*0.75);
+			poss[p+i*9+2*3+2+o*9] = 1;
 			p+=9;
 		}
 	}
@@ -374,6 +379,7 @@ void sig_handler(int signum) {
 			return;
 		}
 // 		idshifts = &buf[shm->gri.idshifts_off];
+		idshifts = &buf[buf[shm->gri.pidshifts_off]];
 		reopened_buf++;
 	}
 	dlg_debug("kill -%d signal handled\n", signum);
@@ -428,7 +434,7 @@ void pick_element(float mpos[2]) {
 	vdata.positions[0] = mpos[0];
 	vdata.positions[1] = mpos[1];
 	dlg_debug("V %fx%f %fx%f %fx%f", vdata.positions[0], vdata.positions[1], vdata.positions[3], vdata.positions[4], vdata.positions[6],  vdata.positions[7]);
-	while(n < shm->gri.vertexcnt) {
+	while(n < buf[shm->gri.pvertexcnt]) {
 		dlg_debug("V %fx%f %fx%f %fx%f", vdata.positions[n*9], vdata.positions[n*9+1], vdata.positions[n*9+3], vdata.positions[n*9+4], vdata.positions[n*9+6],  vdata.positions[n*9+7]);
 		if(tri_intersect(&vdata.positions[n*9], &vdata.positions[n*9+3], &vdata.positions[n*9+6], mpos)) {
 			select_state = SelectingNode;
@@ -819,13 +825,14 @@ static const struct swa_window_listener window_listener = {
 struct swa_display* dpy;
 struct swa_window* win;
 int main(int argc, char** argv, char** envp) {
-	signal(SIGINT, sig_handler); // Register signal handler
-    signal(SIGQUIT, sig_handler); // Register signal handler
-    signal(SIGBUS, sig_handler); // Register signal handler
-    signal(SIGUSR1, sig_handler); // Register signal handler
-    signal(SIGUSR2, sig_handler); // Register signal handler
-//     signal(SIGSEGV, sig_handler); // Register signal handler
-    signal(SIGTERM, sig_handler); // Register signal handler
+	// Register signal handlers
+	signal(SIGINT, sig_handler);
+    signal(SIGQUIT, sig_handler);
+    signal(SIGBUS, sig_handler);
+    signal(SIGUSR2, sig_handler);
+//     signal(SIGSEGV, sig_handler);
+    signal(SIGTERM, sig_handler);
+    signal(SIGUSR1, sig_handler);
 	if(argc < 2) {
 		printf("usage: graphics [SHM NAME]\n");
 		return 0;
@@ -878,6 +885,7 @@ int main(int argc, char** argv, char** envp) {
 	inpname = argv[1];
 
 	io_init();
+	raise(SIGSTOP); // wait for debugger
 	ui_init();
 	graphics_init();
 

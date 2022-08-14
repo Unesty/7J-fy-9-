@@ -176,6 +176,7 @@ int open_db(char* path) {
 
     // some nodes will probably be added here, skip until end
     i = buf[2];
+    uint32_t gmds = 0; //TODO: array of these for multiple graphs
     while(buf[i] != nodegraphmetadatastart) {
         i++;
         if(i*hnl > db_sz) {
@@ -183,15 +184,18 @@ int open_db(char* path) {
             return 1404;
         }
     }
+    gmds = i;
     // Begin parsing graph
     // get graph metadata
     // graph id is known
+    //TODO: use u32 pointer instead of copying to another shm
     shm->gri.id = 0; // next graph in db will have 1. maybe store graph count in header?
     dlg_debug("graph id = %d", 0);
     i++;
     if(buf[i] == nodeu32) {
         i++;
-        shm->gri.len = buf[i]; // errors can easily be here
+//         shm->gri.len = buf[i]; // errors can easily be here
+        shm->gri.plen = i; // errors can easily be here
         dlg_debug("graph data length = %d at %d", buf[i], i);
     } else {
         dlg_error("invalid graph metadata at %d: data length node must have u32 type", i);
@@ -201,7 +205,7 @@ int open_db(char* path) {
     // graph vertex count
     if(buf[i] == nodeu32) {
         i++;
-        shm->gri.vertexcnt = buf[i];
+        shm->gri.pvertexcnt = i;
         dlg_debug("graph vertexcnt = %d at %d", buf[i], i);
     } else {
         dlg_error("invalid graph metadata at %d: graph vertexcnt must have u32 type", i);
@@ -211,7 +215,7 @@ int open_db(char* path) {
     // graph type
     if(buf[i] == nodeu32) {
         i++;
-        shm->gri.type = buf[i];
+        shm->gri.ptype = i;
         dlg_debug("graph type = %d at %d", buf[i], i);
     } else {
         dlg_error("invalid graph metadata at %d: graph type node must have u32 type", i);
@@ -220,7 +224,7 @@ int open_db(char* path) {
     i++;
     if(buf[i] == nodeu32) {
         i++;
-        shm->gri.idshifts_len = buf[i];
+        shm->gri.pidshifts_len = i;
         dlg_debug("idshifts_len = %d at %d", buf[i], i);
     } else {
         dlg_error("invalid graph metadata at %d: idshifts_len node must have u32 type", i);
@@ -230,7 +234,7 @@ int open_db(char* path) {
     i++;
     if(buf[i] == nodeidshifstart) {
         i++;
-        shm->gri.idshifts_off = i;
+        shm->gri.pidshifts_off = i;
         dlg_debug("idshifts_off = %d", i);
         idshifts = &buf[i];
         dlg_debug("idshifts = %lx at %d", (uint64_t)&buf[i], i);
@@ -238,7 +242,7 @@ int open_db(char* path) {
         dlg_error("invalid graph metadata at %d: nodeidshifstart must have nodeidshifstart type", i);
         return 1;
     }
-    i+=shm->gri.idshifts_len;
+    i+=buf[shm->gri.pidshifts_len];
     if(buf[i] == nodegraphdatastart) {
     } else {
         dlg_error("invalid graph metadata at %d: graph data start node must have nodegraphdatastart type, not %d", i, buf[i]);
@@ -248,42 +252,36 @@ int open_db(char* path) {
     shm->gri.start = i;
     dlg_debug("graph start in db file = %d", i);
 
-    if(shm->gri.type == 7) {
+    if(buf[shm->gri.ptype] == 7) {
         dlg_debug("graph type is 7");
-        uint32_t new_idshifts_len = shm->gri.len/2+1; // biggest possible value, may be incorrect
+//         raise(SIGSTOP); // wait for debugger
+        //TODO: in case of error in buf[shm->gri.pidshifts_len], recalculate it
+        uint32_t new_idshifts_len = buf[shm->gri.plen]/2+1; // biggest possible value, may be incorrect
+        uint32_t add_len = new_idshifts_len*4-buf[shm->gri.pidshifts_len]*4;
         // allocate space if not allocated
-        if(shm->gri.idshifts_len == 0) {
-            size_t new_db_sz = db_sz+new_idshifts_len*4;
+        {
+//         if(buf[shm->gri.pidshifts_len] == 0) {
+            size_t new_db_sz = db_sz+add_len;
 
             // mremap works only for 1 thread, doesn't resize file when other process mmaped file, like in this case
             // so we send signal to other threads to mremap
-
-            dlg_debug("new_idshifts_len = %d\nappend, mremap space", new_idshifts_len);
-            sleep(10);
-            lseek(db_fds[0], 0, SEEK_END);
-            uint8_t *b = malloc(new_idshifts_len*4);
-            memset(b, 0, new_idshifts_len*4);
-            write(db_fds[0], b, new_idshifts_len*4);
-            free(b);
-            buf = mremap(buf, db_sz, new_db_sz, MAP_SHARED);
-            dlg_debug("mremapped");
-
-            if(buf == MAP_FAILED) {
-                dlg_error("db mremap failed");
-                return -3;
-            }
-
-            res = stat(path, &dv.statbuf);
-            if(res == -1) {
-                dlg_error("failed to stat %s", path); // we need a graph of errors, so we need to save parsing history in another graph
-                return -1;
-            }
             if(new_db_sz == (size_t)dv.statbuf.st_size) {
                 db_sz = new_db_sz;
-                if(kill(shm->pids.graphics, SIGBUS)) {
-                    dlg_error("couldn't send SIGBUS signal to graphics process");
-                } else {
-                    dlg_debug("sent SIGBUS to graphics process");
+                if(shm->pids.graphics != 0) {
+                    for(int kk=10; kk>0; --kk) {
+                        if(kill(shm->pids.graphics, 0)) {
+                            dlg_debug("wait for graphics process");
+                            sleep(1);
+                        } else {
+                            break;
+                        }
+                    }
+                    dlg_debug("SIGUSR1 to graphics process");
+                    if(kill(shm->pids.graphics, SIGUSR1)) {
+                        dlg_error("couldn't send SIGUSR1 signal to graphics process");
+                    } else {
+                        dlg_debug("sent SIGUSR1 to graphics process");
+                    }
                 }
 //                 if(kill(shm->pids.sound, SIGBUS)) {
 //                     dlg_debug("sent SIGBUS to graphics process");
@@ -298,26 +296,46 @@ int open_db(char* path) {
             } else {
                 dlg_error("file stat says it's not resized to %ld, it was %d, now %ld", new_db_sz, db_sz, dv.statbuf.st_size);
             }
+            dlg_debug("new_idshifts_len = %d\nappend, mremap space", new_idshifts_len);
+            lseek(db_fds[0], 0, SEEK_END);
+            uint8_t *b = malloc(add_len);
+            memset(b, 0, add_len);
+            write(db_fds[0], b, add_len);
+            free(b);
+            buf = mremap(buf, db_sz, new_db_sz, MAP_SHARED);
+            dlg_debug("mremapped");
 
-            shm->gri.idshifts_len = new_idshifts_len;
+            if(buf == MAP_FAILED) {
+                dlg_error("db mremap failed");
+                return -3;
+            }
+
+            res = stat(path, &dv.statbuf);
+            if(res == -1) {
+                dlg_error("failed to stat %s", path); // we need a graph of errors, so we need to save parsing history in another graph
+                return -1;
+            }
+
+
+            buf[shm->gri.pidshifts_len] = new_idshifts_len;
             // maybe use memmove?
-//             memmove(&buf[shm->gri.idshifts_off+1], buf[shm->gri.idshifts_off+1+new_idshifts_len], new_idshifts_len*4);
-            for(uint32_t n = db_sz-1; n >= shm->gri.idshifts_off+new_idshifts_len; n--) {
+//             memmove(&buf[buf[shm->gri.pidshifts_off]+1], buf[buf[shm->gri.pidshifts_off]+1+new_idshifts_len], new_idshifts_len*4);
+            for(uint32_t n = db_sz-1; n >= buf[shm->gri.pidshifts_off]+new_idshifts_len; n--) {
                 buf[n] = buf[n-new_idshifts_len];
                 dlg_debug("buf[%d] = %d at buf[%d-%d] ? it's %d", n, buf[n-new_idshifts_len], n, new_idshifts_len, buf[n]);
             }
             buf[nids_l_o] = new_idshifts_len;
             i += new_idshifts_len;
 
-//             uint32_t offs = shm->gri.idshifts_off;
+//             uint32_t offs = buf[shm->gri.pidshifts_off];
             uint32_t n = 0;
-            while(i-shm->gri.idshifts_off-shm->gri.idshifts_len < shm->gri.len) {
+            while(i-buf[shm->gri.pidshifts_off]-buf[shm->gri.pidshifts_len] < buf[shm->gri.plen]) {
                 if(i >= db_sz) {
-                    dlg_error("shm->gri.len+shm->gri.start is bigger than db_sz %s", shm->gri.len+shm->gri.start > db_sz?"true":"false");
+                    dlg_error("buf[shm->gri.plen]+shm->gri.start is bigger than db_sz %s", buf[shm->gri.plen]+shm->gri.start > db_sz?"true":"false");
                     break;
                 }
-                if(n > shm->gri.idshifts_len) {
-                    dlg_info("more nodes(%d) than idshifts buffer(%d), need reallocation, or fix algorithm", n, shm->gri.idshifts_len);
+                if(n > buf[shm->gri.pidshifts_len]) {
+                    dlg_info("more nodes(%d) than idshifts buffer(%d), need reallocation, or fix algorithm", n, buf[shm->gri.pidshifts_len]);
                     break; //TODO: error if outside nodes, or reallocate
                 }
                 if(idshifts[n] == nodegraphdatastart) {
@@ -326,7 +344,7 @@ int open_db(char* path) {
                 dlg_debug("idshifts[%d] %d", n, idshifts[n]);
                 idshifts[/*offs+*/n] = i;
                 dlg_debug("idshifts[%d] = %d", n, i);
-                shm->gri.vertexcnt++;
+                buf[shm->gri.pvertexcnt]++;
                 uint32_t inlen = buf[i];
                 i++;
                 uint32_t outlen = buf[i];
@@ -334,17 +352,17 @@ int open_db(char* path) {
                 i+=inlen+outlen;
                 n++;
             }
-        } else {
-            // add all idshifts from all graphs
-            shm->gri.vertexcnt = shm->gri.idshifts_len;
+//         } else {
+//             // add all idshifts from all graphs
+//             buf[shm->gri.pvertexcnt] = buf[shm->gri.pidshifts_len];
         }
     }
     dlg_info("i = %d after setting idshifts", i);
 
     // parsing graph
-    if(shm->gri.len == 0) {
+    if(buf[shm->gri.plen] == 0) {
         dlg_info("empty graph");
-//         shm->gri.idshifts_len = 0;
+//         buf[shm->gri.pidshifts_len] = 0;
         return 0;
     }
     // nodeskip0
@@ -395,7 +413,7 @@ int run_db_7(uint32_t grn) {
         dlg_error("mems mmap failed");
         return -3;
     }
-//     uint32_t offs = shm->gri.idshifts_off;
+//     uint32_t offs = buf[shm->gri.pidshifts_off];
     s = idshifts[/*offs+*/nodetype];
     inlen = buf[s];
     outlen = buf[s+1];
