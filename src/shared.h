@@ -58,7 +58,7 @@ struct SharedMem {
         dbp pvertexcnt;
         dbp ptype;
         dbp pidshifts_len;
-        dbp pidshifts_off;
+        dbp pidshifts;
     }gri;
     //
     //////////////////////////////////////////

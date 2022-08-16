@@ -165,8 +165,8 @@ void io_init() {
         dlg_error("db mmap failed");
         return;
     }
-//     idshifts = &buf[shm->gri.idshifts_off]; // WARNING: no copying!
-    idshifts = &buf[buf[shm->gri.pidshifts_off]];
+//     idshifts = &buf[shm->gri.idshifts]; // WARNING: no copying!
+    idshifts = &buf[buf[shm->gri.pidshifts]];
 }
 // TODO: move these visual settings to graph
 float gap = 1.5;
@@ -175,7 +175,7 @@ float nwidth = 0.5;
 float ewidth = 0.05;
 void ui_init() {
 // 	dbp idshifts[buf[shm->gri.pidshifts_len]];
-// 	*idshifts = buf[shm->gri.pidshifts_off];
+// 	*idshifts = buf[shm->gri.pidshifts];
 	uint32_t vdlen = buf[shm->gri.pvertexcnt];
 	// allocate vertex buffer
 	// background triangle
@@ -378,8 +378,8 @@ void sig_handler(int signum) {
 			dlg_error("reopen db mmap failed");
 			return;
 		}
-// 		idshifts = &buf[shm->gri.idshifts_off];
-		idshifts = &buf[buf[shm->gri.pidshifts_off]];
+// 		idshifts = &buf[shm->gri.idshifts];
+		idshifts = &buf[buf[shm->gri.pidshifts]];
 		reopened_buf++;
 	}
 	dlg_debug("kill -%d signal handled\n", signum);
@@ -885,7 +885,7 @@ int main(int argc, char** argv, char** envp) {
 	inpname = argv[1];
 
 	io_init();
-	raise(SIGSTOP); // wait for debugger
+// 	raise(SIGSTOP); // wait for debugger
 	ui_init();
 	graphics_init();
 
